@@ -1,8 +1,8 @@
-XenForoAPI
+XenAPI
 ==========
 
-This class can be used to use XenForo's function in other PHP projects. One class to rule them all.
+This REST API can be used to use XenForo's function.
 
 Copyright (c) 2011-2012, Contex <http://www.contex.me>
 
-XenForoAPI is licensed under GNU LESSER GENERAL PUBLIC LICENSE Version 3.
+XenAPI is licensed under GNU LESSER GENERAL PUBLIC LICENSE Version 3.

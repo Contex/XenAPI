@@ -1,13 +1,13 @@
 <?php
 /*
- * This file is part of XenForoAPI <http://www.contex.me/>.
+ * This file is part of XenAPI <http://www.contex.me/>.
  *
- * XenForoAPI is free software: you can redistribute it and/or modify
+ * XenAPI is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * XenForoAPI is distributed in the hope that it will be useful,
+ * XenAPI is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-$xf = new XenForoAPI("/home/contex/www/"); 
+$xf = new XenAPI("/home/contex/www/"); 
 echo $xf->getLatestUser()->getID() . "<br>";
 if (!$xf->getUser(1)->validateAuthentication("test")) {
 	echo "Failed login!<br>";
@@ -25,7 +25,7 @@ if (!$xf->getUser(1)->validateAuthentication("test")) {
 echo $xf->getTotalUsersCount() . "<br>";
 echo $xf->getLatestUser()->getID();
 
-class XenForoAPI {
+class XenAPI {
 	private $xfDir, $startTime;
 	private $models;
 	
@@ -36,7 +36,7 @@ class XenForoAPI {
 		XenForo_Autoloader::getInstance()->setupAutoloader($this->xfDir. '/library');
 		XenForo_Application::initialize($this->xfDir . '/library', $this->xfDir);
 		XenForo_Application::set('page_start_time', $this->startTime);
-		$this->models = new XenForoModels();
+		$this->models = new Models();
 		$this->models->setUserModel(XenForo_Model::create('XenForo_Model_User'));
 		$this->models->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
 	}
@@ -54,7 +54,7 @@ class XenForoAPI {
 	}
 	
 	public function getLatestUser() {
-		return new XenForoUser($this->models, $this->models->getUserModel()->getLatestUser());
+		return new User($this->models, $this->models->getUserModel()->getLatestUser());
 	}
 	
 	public function getTotalUsersCount() {
@@ -63,16 +63,16 @@ class XenForoAPI {
 	
 	public function getUser($userInput) {
 		if (is_int($userInput)) {
-			return new XenForoUser($this->models, $this->models->getUserModel()->getUserById($userInput));
+			return new User($this->models, $this->models->getUserModel()->getUserById($userInput));
 		} else if($this->models->getUserModel()->couldBeEmail($userInput)) {
-			return new XenForoUser($this->models, $this->models->getUserModel()->getUserByEmail($userInput));
+			return new User($this->models, $this->models->getUserModel()->getUserByEmail($userInput));
 		} else {
-			return new XenForoUser($this->models, $this->models->getUserModel()->getUserByName($userInput));
+			return new User($this->models, $this->models->getUserModel()->getUserByName($userInput));
 		}
 	}
 }
 
-class XenForoModels {
+class Models {
 	private $userModel, $userFieldModel;
 	
 	public function setUserModel($userModel) {
@@ -92,7 +92,7 @@ class XenForoModels {
 	}
 }
 
-class XenForoUser {
+class User {
 	private $models, $data;
 	
 	public function __construct($models, $data) {
