@@ -22,7 +22,7 @@ if (!$xf->getUser(1)->validateAuthentication("test")) {
 } else {
 	echo "Passed login!<br>";
 }
-echo $xf->countTotalUsers() . "<br>";
+echo $xf->getTotalUsersCount() . "<br>";
 echo $xf->getLatestUser()->getID();
 
 class XenForoAPI {
