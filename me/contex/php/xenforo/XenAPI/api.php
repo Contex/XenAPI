@@ -16,18 +16,168 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 $xf = new XenAPI("/home/contex/www/"); 
-echo $xf->getLatestUser()->getID() . "<br>";
-if (!$xf->getUser(1)->validateAuthentication("test")) {
-	echo "Failed login!<br>";
+$xf->setAPIKey("b8e7ae12510bdfb110bd");
+
+echo $xf->getRest()->getHash() . "<br>";
+
+if ($xf->getRest()->hasRequest('action')) {
+	if (!$xf->getRest()->getAction()) {
+		$xf->getRest()->throwErrorF(1, "action");
+	} else if (!$xf->getRest()->isSupportedAction()) {
+		$xf->getRest()->throwErrorF(2, $xf->getRest()->getAction());
+	} else {
+		$xf->getRest()->processRequest();
+	}
 } else {
-	echo "Passed login!<br>";
+	$xf->getRest()->throwErrorF(3, "action");
 }
-echo $xf->getTotalUsersCount() . "<br>";
-echo $xf->getLatestUser()->getID();
+
+class RestAPI {
+	private $xenAPI, $actions = array("getuser");
+	private $method, $data = array();
+	private $errors = array(0 => "Unknown error", 
+							1 => "Parameter: {ERROR}, is empty/missing a value",
+							2 => "{ERROR}, is not a supported action",
+							3 => "Missing parameter: {ERROR}",
+							4 => "No user found with the parameter: {ERROR}");
+	
+	public function __construct($xenAPI) {
+		$this->xenAPI = $xenAPI;
+		$request_method = strtolower($_SERVER['REQUEST_METHOD']);  
+		$this->method = $request_method;
+		switch ($request_method) {  
+			case 'get':  
+				$this->data = $_GET;  
+				break;  
+			case 'post':  
+				$this->data = $_POST;  
+				break;  
+			case 'put':  
+				parse_str(file_get_contents('php://input'), $put_vars);  
+				$this->data = $put_vars;  
+				break;  
+		} 
+	}
+	
+	public function getHash() {
+		$string = "";
+		foreach ($this->data as $key => $value) {
+			if (strtolower($key) != "hash") {
+				$string .= $key . $value;
+			}
+		}
+		return hash_hmac("sha256", $string, $this->xenAPI->getAPIKey());
+	}
+	
+	public function getMethod() {
+		return $this->method;
+	}
+	
+	public function getAction() {
+		return $this->getRequest('action');
+	}
+	
+	public function hasRequest($key) {
+		return isset($this->data[$key]);
+	}
+	
+	public function getRequest($key) {
+		if ($this->hasRequest($key)) {
+			return $this->data[$key];
+		} else {
+			return false;
+		}
+	}
+	
+	public function getData() {
+		return $this->data;
+	}
+	
+	public function isSupportedAction() {
+		return in_array(strtolower($this->data['action']), $this->actions);
+	}
+	
+	public function getError($error) {
+		$this->getErrorF($error, null);
+	}
+
+	public function getErrorF($error, $extra) {
+		if (array_key_exists($error, $this->errors)) {
+			if ($extra != null) {
+				return str_replace("{ERROR}", $extra, $this->errors[$error]);
+			} else {
+				return $this->errors[$error];
+			}
+		} else {
+			return $this->errors[0];
+		}
+	}
+	
+	public function throwError($error) {
+		$this->throwErrorF($error, null);
+	}
+	
+	public function throwErrorF($error, $extra) {
+		if ($extra != null) {
+			$this->sendResponse(array("error" => $error, "message" => $this->getErrorF($error, $extra)));
+		} else {
+			$this->sendResponse(array("error" => $error, "message" => $this->getError($error)));
+		}
+	}
+	
+	public function processRequest() {
+		switch (strtolower($this->getAction())) {
+			case "getuser": 
+				if (!$this->hasRequest('value')) {
+					$this->throwErrorF(3, "value");
+					break;
+				} else if (!$this->getRequest('value')) {
+					$this->throwErrorF(1, "value");
+					break;
+				}
+				$user = $this->xenAPI->getUser($this->getRequest('value'));
+				if (!$user->isRegistered()) {
+					$this->throwErrorF(4, $this->getRequest('value'));
+					break;
+				} else {
+					$this->sendResponse($user->getData());
+				}
+				break;
+			case "authenticate": 
+				if (!$this->hasRequest('value')) {
+					$this->throwErrorF(3, "value");
+					break;
+				} else if (!$this->getRequest('value')) {
+					$this->throwErrorF(1, "value");
+					break;
+				} else if (!$this->hasRequest('password')) {
+					$this->throwErrorF(3, "password");
+					break;
+				} else if (!$this->getRequest('password')) {
+					$this->throwErrorF(1, "password");
+					break;
+				}
+				$user = $this->xenAPI->getUser($this->getRequest('value'));
+				if (!$user->isRegistered()) {
+					$this->throwErrorF(4, $this->getRequest('value'));
+				} else {
+					if ($user->validateAuthentication($this->getRequest('password'))) {
+						$this->sendResponse(array()); //todo
+					} else {
+						$this->sendResponse(array());
+					}
+				}
+				break;
+		}
+	}
+	
+	public function sendResponse($data) {
+		echo json_encode($data);
+	}
+}
 
 class XenAPI {
-	private $xfDir, $startTime;
-	private $models;
+	private $xfDir, $startTime, $models, $rest, $visitor, $apikey;
 	
 	public function __construct($directory) {
 		$this->xfDir = $directory;
@@ -39,18 +189,28 @@ class XenAPI {
 		$this->models = new Models();
 		$this->models->setUserModel(XenForo_Model::create('XenForo_Model_User'));
 		$this->models->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
+		$this->rest = new RestAPI($this);
+		$this->visitor = new Visitor();
+	}
+	
+	public function getRest() {
+		return $this->rest;
+	}
+	
+	public function getVisitor() {
+		return $this->visitor;
+	}
+	
+	public function getAPIKey() {
+		return $this->apikey;
+	}
+	
+	public function setAPIKey($apikey) {
+		$this->apikey = $apikey;
 	}
 	
 	public function getModels() {
 		return $this->models;
-	}
-	
-	public function getUserModel() {
-		return $this->models->getUserModel();
-	}
-	
-	public function getUserFieldModel() {
-		return $this->models->getUserFieldModel();
 	}
 	
 	public function getLatestUser() {
@@ -61,13 +221,17 @@ class XenAPI {
 		return $this->models->getUserModel()->countTotalUsers();
 	}
 	
-	public function getUser($userInput) {
-		if (is_int($userInput)) {
-			return new User($this->models, $this->models->getUserModel()->getUserById($userInput));
-		} else if($this->models->getUserModel()->couldBeEmail($userInput)) {
-			return new User($this->models, $this->models->getUserModel()->getUserByEmail($userInput));
+	public function getUser($input) {
+		if (is_numeric($input)) {
+			$user = new User($this->models, $this->models->getUserModel()->getUserById($input));
+			if (!$user->isRegistered()) {
+				return new User($this->models, $this->models->getUserModel()->getUserByName($input));
+			}
+			return $user;
+		} else if($this->models->getUserModel()->couldBeEmail($input)) {
+			return new User($this->models, $this->models->getUserModel()->getUserByEmail($input));
 		} else {
-			return new User($this->models, $this->models->getUserModel()->getUserByName($userInput));
+			return new User($this->models, $this->models->getUserModel()->getUserByName($input));
 		}
 	}
 }
@@ -93,11 +257,18 @@ class Models {
 }
 
 class User {
-	private $models, $data;
+	private $models, $data, $registered = false;
 	
 	public function __construct($models, $data) {
 		$this->models = $models;
 		$this->data = $data;
+		if (!empty($data)) {
+			$this->registered = true;
+		}
+	}
+	
+	public function isRegistered() {
+		return $this->registered;
 	}
 	
 	public function getData() {
@@ -115,49 +286,46 @@ class User {
 	public function getUnreadAlertsCount() {
 		return $this->models->getUserModel()->getUnreadAlertsCount($this->getID()); 
 	}
+}
 
-	public function getID() {
-		return $this->data['user_id'];
+class Visitor {
+	private $ip, $useragent, $referer;
+
+	public function __construct() {
+		if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+			$this->ip = $_SERVER['HTTP_CLIENT_IP'];
+		} else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+			$this->ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+		} else if(isset($_SERVER['REMOTE_ADDR'])) {
+			$this->ip = $_SERVER['REMOTE_ADDR'];
+		}
+		if (isset($_SERVER['HTTP_USER_AGENT'])) { 
+			$this->useragent = $_SERVER['HTTP_USER_AGENT']; 
+		}
+		if (isset($_SERVER['HTTP_REFERER'])) { 
+			$this->referer = $_SERVER['HTTP_REFERER']; 
+		}
 	}
-	
-	public function getUsername() {
-		return $this->data['username'];
+
+	/*
+	* Returns the IP of the visitor.
+	*/
+	public function getIP() {
+		return $this->ip;
 	}
-	
-	public function getEmail() {
-		return $this->data['email'];
+
+	/*
+	* Returns the User Agent of the visitor.
+	*/
+	public function getUserAgent() {
+		return $this->useragent;
 	}
-	
-	public function getGender() {
-		return $this->data['gender'];
-	}
-	
-	public function getCustomTitle() {
-		return $this->data['custom_title'];
-	}
-	
-	public function getLanguageID() {
-		return $this->data['language_id'];
-	}
-	
-	public function getStyleID() {
-		return $this->data['style_id'];
-	}
-	
-	public function getTimezone() {
-		return $this->data['timezone'];
-	}
-	
-	public function isVisible() {
-		return $this->data['visible'];
-	}
-	
-	public function getGroupID() {
-		return $this->data['user_group_id'];
-	}
-	
-	public function getSecondaryGroupIDs() {
-		return $this->data['secondary_group_ids'];
+
+	/*
+	* Returns the referer of the visitor.
+	*/
+	public function getReferer() {
+		return $this->referer;
 	}
 }
 ?>
