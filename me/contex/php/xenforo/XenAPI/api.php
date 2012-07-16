@@ -18,8 +18,6 @@
 $xf = new XenAPI("/home/contex/www/"); 
 $xf->setAPIKey("b8e7ae12510bdfb110bd");
 
-echo $xf->getRest()->getHash() . "<br>";
-
 if ($xf->getRest()->hasRequest('action')) {
 	if (!$xf->getRest()->getAction()) {
 		$xf->getRest()->throwErrorF(1, "action");
@@ -33,13 +31,14 @@ if ($xf->getRest()->hasRequest('action')) {
 }
 
 class RestAPI {
-	private $xenAPI, $actions = array("getuser");
+	private $xenAPI, $actions = array("getuser", "authenticate");
 	private $method, $data = array();
 	private $errors = array(0 => "Unknown error", 
 							1 => "Parameter: {ERROR}, is empty/missing a value",
 							2 => "{ERROR}, is not a supported action",
 							3 => "Missing parameter: {ERROR}",
-							4 => "No user found with the parameter: {ERROR}");
+							4 => "No user found with the parameter: {ERROR}",
+							5 => "Authentication error: {ERROR}");
 	
 	public function __construct($xenAPI) {
 		$this->xenAPI = $xenAPI;
@@ -162,9 +161,11 @@ class RestAPI {
 					$this->throwErrorF(4, $this->getRequest('value'));
 				} else {
 					if ($user->validateAuthentication($this->getRequest('password'))) {
-						$this->sendResponse(array()); //todo
+						$record = $user->getAuthenticationRecord();
+						$ddata = unserialize($record['data']);
+						$this->sendResponse(array('hash'=>$ddata['hash']));
 					} else {
-						$this->sendResponse(array());
+						$this->throwErrorF(5, 'Invalid username or password!');
 					}
 				}
 				break;
@@ -276,11 +277,11 @@ class User {
 	}
 	
 	public function getAuthenticationRecord() {
-		return $this->models->getUserModel()->getUserAuthenticationRecordByUserId($this->getID()); 
+		return $this->models->getUserModel()->getUserAuthenticationRecordByUserId($this->getData()['user_id']); 
 	}
 	
 	public function validateAuthentication($password) {
-		return $this->models->getUserModel()->validateAuthentication($this->getUsername(), $password); 
+		return $this->models->getUserModel()->validateAuthentication($this->getData()['username'], $password); 
 	}
 	
 	public function getUnreadAlertsCount() {
@@ -329,3 +330,4 @@ class Visitor {
 	}
 }
 ?>
+
