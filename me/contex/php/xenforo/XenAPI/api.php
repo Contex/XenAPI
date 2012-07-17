@@ -23,6 +23,10 @@ if ($xf->getRest()->hasRequest('action')) {
 		$xf->getRest()->throwErrorF(1, "action");
 	} else if (!$xf->getRest()->isSupportedAction()) {
 		$xf->getRest()->throwErrorF(2, $xf->getRest()->getAction());
+	} else if (!$xf->getRest()->hasRequest("hash") && !$xf->getRest()->isIgnoredAction()) {
+		$xf->getRest()->throwErrorF(1, "hash");
+	} else if (!$xf->getRest()->isAuthenticated() && !$xf->getRest()->isIgnoredAction()) {
+		$xf->getRest()->throwErrorF(6, $xf->getRest()->getHash());
 	} else {
 		$xf->getRest()->processRequest();
 	}
@@ -32,13 +36,15 @@ if ($xf->getRest()->hasRequest('action')) {
 
 class RestAPI {
 	private $xenAPI, $actions = array("getuser", "authenticate");
-	private $method, $data = array();
+	private $ignoredActions = array("authenticate");
+	private $method, $data = array(), $hash = false;
 	private $errors = array(0 => "Unknown error", 
 							1 => "Parameter: {ERROR}, is empty/missing a value",
 							2 => "{ERROR}, is not a supported action",
 							3 => "Missing parameter: {ERROR}",
 							4 => "No user found with the parameter: {ERROR}",
-							5 => "Authentication error: {ERROR}");
+							5 => "Authentication error: {ERROR}",
+							6 => "{ERROR} is not a valid hash");
 	
 	public function __construct($xenAPI) {
 		$this->xenAPI = $xenAPI;
@@ -56,16 +62,33 @@ class RestAPI {
 				$this->data = $put_vars;  
 				break;  
 		} 
+		if ($this->hasRequest("hash")) {
+			$this->hash = $this->getRequest("hash");
+		}
 	}
 	
 	public function getHash() {
-		$string = "";
-		foreach ($this->data as $key => $value) {
-			if (strtolower($key) != "hash") {
-				$string .= $key . $value;
+		return $this->hash;
+	}
+	
+	public function isAuthenticated() {
+		if ($this->getHash()) {
+			if ($this->getHash() == $this->xenAPI->getAPIKey()) {
+				return true;
+			}
+			if (strpos($this->getHash(), ":") !== false) {
+				$array = explode(":", $this->getHash());
+				$user = $this->xenAPI->getUser($array[0]);
+				if ($user->isRegistered()) {
+					$record = $user->getAuthenticationRecord();
+					$ddata = unserialize($record['data']);
+					if ($ddata['hash'] == $array[1]) {
+						return true;
+					}
+				}
 			}
 		}
-		return hash_hmac("sha256", $string, $this->xenAPI->getAPIKey());
+		return false;
 	}
 	
 	public function getMethod() {
@@ -94,6 +117,10 @@ class RestAPI {
 	
 	public function isSupportedAction() {
 		return in_array(strtolower($this->data['action']), $this->actions);
+	}
+	
+	public function isIgnoredAction() {
+		return in_array(strtolower($this->data['action']), $this->ignoredActions);
 	}
 	
 	public function getError($error) {
@@ -143,11 +170,11 @@ class RestAPI {
 				}
 				break;
 			case "authenticate": 
-				if (!$this->hasRequest('value')) {
-					$this->throwErrorF(3, "value");
+				if (!$this->hasRequest('username')) {
+					$this->throwErrorF(3, "username");
 					break;
-				} else if (!$this->getRequest('value')) {
-					$this->throwErrorF(1, "value");
+				} else if (!$this->getRequest('username')) {
+					$this->throwErrorF(1, "username");
 					break;
 				} else if (!$this->hasRequest('password')) {
 					$this->throwErrorF(3, "password");
@@ -156,14 +183,14 @@ class RestAPI {
 					$this->throwErrorF(1, "password");
 					break;
 				}
-				$user = $this->xenAPI->getUser($this->getRequest('value'));
+				$user = $this->xenAPI->getUser($this->getRequest('username'));
 				if (!$user->isRegistered()) {
-					$this->throwErrorF(4, $this->getRequest('value'));
+					$this->throwErrorF(4, $this->getRequest('username'));
 				} else {
 					if ($user->validateAuthentication($this->getRequest('password'))) {
 						$record = $user->getAuthenticationRecord();
 						$ddata = unserialize($record['data']);
-						$this->sendResponse(array('hash'=>$ddata['hash']));
+						$this->sendResponse(array('hash' => $ddata['hash']));
 					} else {
 						$this->throwErrorF(5, 'Invalid username or password!');
 					}
@@ -178,7 +205,7 @@ class RestAPI {
 }
 
 class XenAPI {
-	private $xfDir, $startTime, $models, $rest, $visitor, $apikey;
+	private $xfDir, $startTime, $models, $rest, $visitor, $apikey = false;
 	
 	public function __construct($directory) {
 		$this->xfDir = $directory;
@@ -277,11 +304,17 @@ class User {
 	}
 	
 	public function getAuthenticationRecord() {
-		return $this->models->getUserModel()->getUserAuthenticationRecordByUserId($this->getData()['user_id']); 
+		return $this->models->getUserModel()->getUserAuthenticationRecordByUserId($this->data['user_id']); 
 	}
 	
 	public function validateAuthentication($password) {
-		return $this->models->getUserModel()->validateAuthentication($this->getData()['username'], $password); 
+		if (strlen($password) == 64) {
+			$record = $this->getAuthenticationRecord();
+			$ddata = unserialize($record['data']);
+			return $ddata['hash'] == $password;
+		} else {
+			return $this->models->getUserModel()->validateAuthentication($this->data['username'], $password); 
+		}
 	}
 	
 	public function getUnreadAlertsCount() {
@@ -330,4 +363,3 @@ class Visitor {
 	}
 }
 ?>
-
