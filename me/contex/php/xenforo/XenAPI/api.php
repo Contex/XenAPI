@@ -35,7 +35,7 @@ if ($xf->getRest()->hasRequest('action')) {
 }
 
 class RestAPI {
-	private $xenAPI, $actions = array("getuser", "authenticate");
+	private $xenAPI, $actions = array("getuser", "getavatar", "getusers", "getgroup", "authenticate");
 	private $ignoredActions = array("authenticate");
 	private $method, $data = array(), $hash = false;
 	private $errors = array(0 => "Unknown error", 
@@ -44,7 +44,8 @@ class RestAPI {
 							3 => "Missing parameter: {ERROR}",
 							4 => "No user found with the parameter: {ERROR}",
 							5 => "Authentication error: {ERROR}",
-							6 => "{ERROR} is not a valid hash");
+							6 => "{ERROR} is not a valid hash",
+							7 => "No group found with the parameter: {ERROR}");
 	
 	public function __construct($xenAPI) {
 		$this->xenAPI = $xenAPI;
@@ -88,6 +89,14 @@ class RestAPI {
 				}
 			}
 		}
+		return false;
+	}
+	
+	public function getUser() {
+		if (strpos($this->getHash(), ":") !== false) {
+			$array = explode(":", $this->getHash());
+			return $this->xenAPI->getUser($array[0]);
+		}	
 		return false;
 	}
 	
@@ -166,7 +175,85 @@ class RestAPI {
 					$this->throwErrorF(4, $this->getRequest('value'));
 					break;
 				} else {
-					$this->sendResponse($user->getData());
+					$data = $user->getData();
+					unset($data['style_id']);
+					unset($data['display_style_group_id']);
+					unset($data['permission_combination_id']);
+					if (!$this->getUser()->isAdmin()) {
+						unset($data['is_banned']);
+					} 
+					if (!$this->getUser()->isModerator()) {
+						unset($data['user_state']);
+						unset($data['visible']);
+						unset($data['email']);
+					} 
+					if ($this->getUser()->getID() != $user->getID()) {
+						unset($data['language_id']);
+						unset($data['message_count']);
+						unset($data['conversations_unread']);
+						unset($data['alerts_unread']);
+					}
+					$this->sendResponse($data);
+				}
+				break;
+			case "getavatar": 
+				if ($this->hasRequest('value')) {
+					if (!$this->getRequest('value')) {
+						$this->throwErrorF(1, "value");
+						break;
+					}
+					$user = $this->xenAPI->getUser($this->getRequest('value'));
+					if (!$user->isRegistered()) {
+						$this->throwErrorF(4, $this->getRequest('value'));
+						break;
+					}
+				} else {
+					$user = $this->getUser();
+				}
+				if ($this->hasRequest('size')) {
+					if (!$this->getRequest('size')) {
+						$this->throwErrorF(1, "size");
+						break;
+					}
+					$size = strtolower($this->getRequest('size'));
+					if (!in_array($size, array("s", "m", "l"))) {
+						$size = "m";
+					}
+				} else {
+					$size = "m";
+				}
+				$this->sendResponse(array("avatar" => $user->getAvatar($size)));
+				break;
+			case "getusers": 
+				if (!$this->hasRequest('value')) {
+					$this->throwErrorF(3, "value");
+					break;
+				} else if (!$this->getRequest('value')) {
+					$this->throwErrorF(1, "value");
+					break;
+				}
+				$string = str_replace("*", "%", $this->getRequest('value'));
+				$results = $this->xenAPI->getDatabase()->fetchAll("SELECT `username` FROM `xf_user` WHERE `username` LIKE '$string'");
+				$this->sendResponse($results);
+				break;
+			case "getgroup": 
+				if (!$this->hasRequest('value')) {
+					$this->throwErrorF(3, "value");
+					break;
+				} else if (!$this->getRequest('value')) {
+					$this->throwErrorF(1, "value");
+					break;
+				}
+				$string = $this->getRequest('value');
+				if (is_numeric($string)) {
+					$group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = $string");
+				} else {
+					$group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `title` = '$string' OR `user_title` = '$string'");
+				}
+				if (!$group) {
+					$this->throwErrorF(7, $string);
+				} else {
+					$this->sendResponse($group);
 				}
 				break;
 			case "authenticate": 
@@ -217,8 +304,14 @@ class XenAPI {
 		$this->models = new Models();
 		$this->models->setUserModel(XenForo_Model::create('XenForo_Model_User'));
 		$this->models->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
+		$this->models->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
+		$this->models->setModel("database", XenForo_Application::get('db'));
 		$this->rest = new RestAPI($this);
 		$this->visitor = new Visitor();
+	}
+	
+	public function getDatabase() {
+		return $this->models->getModel("database");
 	}
 	
 	public function getRest() {
@@ -265,24 +358,48 @@ class XenAPI {
 }
 
 class Models {
-	private $userModel, $userFieldModel;
+	private $models;
+	
+	public function getModels() {
+		return $this->models;
+	}
+	
+	public function getModel($model) {
+		return $this->models[$model];
+	}
+	
+	public function setModel($name, $model) {
+		$this->models[$name] = $model;
+	}
 	
 	public function setUserModel($userModel) {
-		$this->userModel = $userModel;
+		$this->models['userModel'] = $userModel;
 	}
 	
 	public function getUserModel() {
-		return $this->userModel;
+		return $this->models['userModel'];
 	}
 	
 	public function setUserFieldModel($userFieldModel) {
-		$this->userFieldModel = $userFieldModel;
+		$this->models['userFieldModel'] = $userFieldModel;
 	}
 	
 	public function getUserFieldModel() {
-		return $this->userFieldModel;
+		return $this->models['userFieldModel'];
 	}
-}
+	
+	public function setAvatarModel($avatarModel) {
+		$this->models['avatarModel'] = $avatarModel;
+	}
+	
+	public function getAvatarModel() {
+		return $this->models['avatarModel'];
+	}
+	
+	public function getDatabase() {
+		return $this->getModel("database");
+	}
+}	
 
 class User {
 	private $models, $data, $registered = false;
@@ -295,12 +412,46 @@ class User {
 		}
 	}
 	
+	public function getData() {
+		return $this->data;
+	}
+	
+	public function getID() {
+		return $this->data['user_id'];
+	}
+	
+	public function getUsername() {
+		return $this->data['username'];
+	}
+	
+	public function getEmail() {
+		return $this->data['email'];
+	}
+	
+	public function getAvatar($size) {
+		if ($this->data['gravatar']) {
+			return XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size);
+		} else if (!empty($this->data['avatar_date'])) {
+			return "http://" . $_SERVER['HTTP_HOST'] . "/" . XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size, 'custom');
+		} else {
+			return "http://" . $_SERVER['HTTP_HOST'] . "/" . XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size, 'default');
+		}
+	}
+	
 	public function isRegistered() {
 		return $this->registered;
 	}
 	
-	public function getData() {
-		return $this->data;
+	public function isModerator() {
+		return $this->data['is_moderator'] == 1;
+	}
+	
+	public function isAdmin() {
+		return $this->data['is_admin'] == 1;
+	}
+	
+	public function isBanned() {
+		return $this->data['is_banned'] == 1;
 	}
 	
 	public function getAuthenticationRecord() {
