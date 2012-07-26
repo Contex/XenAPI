@@ -35,17 +35,19 @@ if ($xf->getRest()->hasRequest('action')) {
 }
 
 class RestAPI {
-	private $xenAPI, $actions = array("getuser", "getavatar", "getusers", "getgroup", "authenticate");
+	private $xenAPI, $actions = array("getactions", "getuser", "getavatar", "getusers", "getgroup", "authenticate");
 	private $ignoredActions = array("authenticate");
 	private $method, $data = array(), $hash = false;
-	private $errors = array(0 => "Unknown error", 
+	private $errors = array(
+							0 => "Unknown error", 
 							1 => "Parameter: {ERROR}, is empty/missing a value",
 							2 => "{ERROR}, is not a supported action",
 							3 => "Missing parameter: {ERROR}",
 							4 => "No user found with the parameter: {ERROR}",
 							5 => "Authentication error: {ERROR}",
 							6 => "{ERROR} is not a valid hash",
-							7 => "No group found with the parameter: {ERROR}");
+							7 => "No group found with the parameter: {ERROR}",
+							8 => "You do not have permissions to use the {ERROR} action");
 	
 	public function __construct($xenAPI) {
 		$this->xenAPI = $xenAPI;
@@ -88,6 +90,13 @@ class RestAPI {
 					}
 				}
 			}
+		}
+		return false;
+	}
+	
+	public function hasAPIKey() {
+		if ($this->getHash()) {
+			return $this->getHash() == $this->xenAPI->getAPIKey();
 		}
 		return false;
 	}
@@ -176,22 +185,24 @@ class RestAPI {
 					break;
 				} else {
 					$data = $user->getData();
-					unset($data['style_id']);
-					unset($data['display_style_group_id']);
-					unset($data['permission_combination_id']);
-					if (!$this->getUser()->isAdmin()) {
-						unset($data['is_banned']);
-					} 
-					if (!$this->getUser()->isModerator()) {
-						unset($data['user_state']);
-						unset($data['visible']);
-						unset($data['email']);
-					} 
-					if ($this->getUser()->getID() != $user->getID()) {
-						unset($data['language_id']);
-						unset($data['message_count']);
-						unset($data['conversations_unread']);
-						unset($data['alerts_unread']);
+					if (!$this->hasAPIKey()) {
+						unset($data['style_id']);
+						unset($data['display_style_group_id']);
+						unset($data['permission_combination_id']);
+						if (!$this->getUser()->isAdmin()) {
+							unset($data['is_banned']);
+						} 
+						if (!$this->getUser()->isModerator()) {
+							unset($data['user_state']);
+							unset($data['visible']);
+							unset($data['email']);
+						} 
+						if ($this->getUser()->getID() != $user->getID()) {
+							unset($data['language_id']);
+							unset($data['message_count']);
+							unset($data['conversations_unread']);
+							unset($data['alerts_unread']);
+						}
 					}
 					$this->sendResponse($data);
 				}
@@ -223,6 +234,15 @@ class RestAPI {
 					$size = "m";
 				}
 				$this->sendResponse(array("avatar" => $user->getAvatar($size)));
+				break;
+			case "getactions":
+				if ($this->hasAPIKey()) {
+					$this->sendResponse($this->actions);
+				} else if ($this->getUser()->isAdmin()) {
+					$this->sendResponse($this->actions);
+				} else {
+					$this->throwErrorF(8, "getactions");
+				}
 				break;
 			case "getusers": 
 				if (!$this->hasRequest('value')) {
