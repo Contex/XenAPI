@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-$xf = new XenAPI("/home/contex/www/"); 
+$xf = new XenAPI(); 
 $xf->setAPIKey("b8e7ae12510bdfb110bd");
 
 if ($xf->getRest()->hasRequest('action')) {
@@ -294,8 +294,8 @@ class RestAPI {
 class XenAPI {
 	private $xfDir, $startTime, $models, $rest, $visitor, $apikey = false;
 	
-	public function __construct($directory) {
-		$this->xfDir = $directory;
+	public function __construct() {
+		$this->xfDir = dirname(__FILE__);
 		$this->startTime = microtime(true);
 		require($this->xfDir . '/library/XenForo/Autoloader.php');
 		XenForo_Autoloader::getInstance()->setupAutoloader($this->xfDir. '/library');
