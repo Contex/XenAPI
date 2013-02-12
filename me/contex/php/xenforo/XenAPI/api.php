@@ -358,7 +358,7 @@ class RestAPI {
                 $user = $this->getUser();
             } else {
                 // Nor the "value" arguement or the "hash" arguement has been set, throw error.
-                $this->throwErrorF(1, "value");
+                $this->throwErrorF(3, "value");
                 break;
             }
         }
