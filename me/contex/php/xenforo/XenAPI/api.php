@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+$time_start = microtime(true);
 $xf = new XenAPI(); 
 $xf->setAPIKey("b8e7ae12510bdfb110bd");
 
@@ -650,6 +651,11 @@ class RestAPI {
     * Send the response array in JSON.
     */
     public function sendResponse($data) {
+        if ($this->hasRequest('performance')) {
+    		global $time_start;
+			$time_end = microtime(true);
+			$data['execution_time'] = $time_end - $time_start;
+		}
         die(json_encode($data));
     }
 }
@@ -659,18 +665,17 @@ class RestAPI {
 * that are needed to use XenForo's classes and functions.
 */
 class XenAPI {
-    private $xfDir, $startTime, $models, $rest, $visitor, $apikey = false;
+    private $xfDir, $models, $rest, $visitor, $apikey = false;
     
     /**
     * Default consturctor, instalizes XenForo classes and models.
     */
     public function __construct() {
         $this->xfDir = dirname(__FILE__);
-        $this->startTime = microtime(true);
         require($this->xfDir . '/library/XenForo/Autoloader.php');
         XenForo_Autoloader::getInstance()->setupAutoloader($this->xfDir. '/library');
         XenForo_Application::initialize($this->xfDir . '/library', $this->xfDir);
-        XenForo_Application::set('page_start_time', $this->startTime);
+        XenForo_Application::set('page_start_time', microtime(true));
         $this->models = new Models();
         $this->models->setUserModel(XenForo_Model::create('XenForo_Model_User'));
         $this->models->setAlertModel(XenForo_Model::create('XenForo_Model_Alert'));
