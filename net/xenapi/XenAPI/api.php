@@ -72,15 +72,17 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-                             'getactions'         => 'public', 
-                             'getalerts'          => 'private', 
-                             'getuser'            => 'authenticated', 
-                             'getavatar'          => 'public', 
-                             'getusers'           => 'public', 
-                             'getgroup'           => 'public', 
-                             'authenticate'       => 'public',
-                             'getaddons'          => 'administrator',
-                             'getaddon'           => 'administrator');
+                             'getactions'   => 'public', 
+                             'getalerts'    => 'private', 
+                             'getuser'      => 'authenticated', 
+                             'getavatar'    => 'public', 
+                             'getusers'     => 'public', 
+                             'getgroup'     => 'public', 
+                             'authenticate' => 'public',
+                             'getaddons'    => 'administrator',
+                             'getaddon'     => 'administrator',
+                             'getresources' => 'administrator',
+                             'getresource'  => 'administrator');
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
     private $user_actions = array('getalerts', 'getuser', 'getavatar');
@@ -100,7 +102,9 @@ class RestAPI {
                             10 => 'You do not have permission to use the "{ERROR}" action',
                             11 => '"{ERROR}" is a supported action but there is no code for it yet',
                             12 => '"{ERROR}" is a unknown request method.',
-                            13 => '"{ERROR}" is not an installed addon.');
+                            13 => '"{ERROR}" is not an installed addon.',
+                            14 => '"{ERROR}" is not an author of any resources.',
+                            15 => 'Could not find a resource with ID "{ERROR}".');
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -711,11 +715,7 @@ class RestAPI {
                 $addons = array();
                 // Loop through all the addons and strip out any information that we don't need.
                 foreach ($installed_addons as $addon) {
-                    $addons[] = array('id'      => $addon->getID(),
-                                      'title'   => $addon->getTitle(),
-                                      'version' => $addon->getVersionString(),
-                                      'enabled' => $addon->isEnabled(),
-                                      'url'     => $addon->getURL());
+                    $addons[] = Addon::getLimitedData($addon);
                 }
                 // Send the response.
                 $this->sendResponse($addons);
@@ -748,11 +748,81 @@ class RestAPI {
                     $this->throwErrorF(13, $string);
                 } else {
                     // Addon was found, send response.
-                    $this->sendResponse(array('id'      => $addon->getID(),
-                                              'title'   => $addon->getTitle(),
-                                              'version' => $addon->getVersionString(),
-                                              'enabled' => $addon->isEnabled(),
-                                              'url'     => $addon->getURL()));
+                    $this->sendResponse(Addon::getLimitedData($addon));
+                }
+                break;
+            case 'getresources':
+                /**
+                * Returns a list of resources, either all the resources, 
+                * or just the resources created by an author.
+                *
+                * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getResources&hash=USERNAME:HASH
+                *   - api.php?action=getResources&hash=API_KEY
+                *   - api.php?action=getResources&author=Contex&hash=USERNAME:HASH
+                *   - api.php?action=getResources&author=1&hash=API_KEY
+                */
+                /* 
+                * Check if the request has the 'author' arguement set, 
+                * if it doesn't it uses the default (all).
+                */
+                if ($this->hasRequest('author')) {
+                    if (!$this->getRequest('author')) {
+                        // Throw error if the 'author' arguement is set but empty.
+                        $this->throwErrorF(1, 'author');
+                        break;
+                    }
+                    // Use the value from the 'author' arguement to get the alerts.
+                    $resources_list = $this->xenAPI->getResources($this->getRequest('author'));
+                    if (count($resources_list) == 0) {
+                       // Throw error if the 'author' is not the author of any resources.
+                        $this->throwErrorF(14, $this->getRequest('author'));
+                        break;
+                    }
+                } else {
+                    // Use the default type to get the alerts.
+                    $resources_list = $this->getXenAPI()->getResources();
+                }
+
+                // Create an array for the resources.
+                $resources = array();
+                // Loop through all the resources and strip out any information that we don't need.
+                foreach ($resources_list as $resource) {
+                    $resources[] = Resource::getLimitedData($resource);
+                }
+                // Send the response.
+                $this->sendResponse(array('total' => count($resources), 'resources' => $resources));
+            case 'getresource': 
+                /**
+                * Returns the resource information depending on the 'value' arguement.
+                *
+                * NOTE: Only resource ID's can be used for the 'value' parameter.
+                *       Resource ID's can be found by using the 'getResources' action.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getResource&value=1&hash=USERNAME:HASH
+                *   - api.php?action=getResource&value=1&hash=API_KEY
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' arguement is set but empty.
+                    $this->throwErrorF(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the addon from XenForo.
+                $resource = $this->getXenAPI()->getResource($string);
+                if (!$resource->isValid()) {
+                    // Could not find the resource, throw error.
+                    $this->throwErrorF(15, $string);
+                } else {
+                    // Resource was found, send response.
+                    $this->sendResponse(Resource::getLimitedData($resource));
                 }
                 break;
             default:
@@ -798,6 +868,7 @@ class XenAPI {
         $this->getModels()->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
         $this->getModels()->setModel('addon', XenForo_Model::create('XenForo_Model_AddOn'));
         $this->getModels()->setModel('database', XenForo_Application::get('db'));
+        $this->getModels()->setModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
     }
     
     /**
@@ -855,6 +926,32 @@ class XenAPI {
     public function getAddon($addon) {
         return new Addon($this->getModels()->getModel('addon')->getAddOnById($addon));
     }
+
+    /**
+    * Returns a list of resources.
+    */
+    public function getResources($author = NULL) {
+        $resources_list = $this->getModels()->getModel('resource')->getResources();
+        $resources = array();
+        foreach ($resources_list as $resource) {
+            $temp_resource = new Resource($resource);
+            if ($author != NULL 
+                && (((is_numeric($author) && $temp_resource->getAuthorUserID() != $author) 
+                    || strtolower($temp_resource->getAuthorUsername()) != strtolower($author)))) {
+                // The author input is not NULL and the resource is not owned by the author, skip the resource.
+                continue;
+            }
+            $resources[] = $temp_resource;
+        }
+        return $resources;
+    }
+
+    /**
+    * Returns the Resource class of the $resource parameter.
+    */
+    public function getResource($resource) {
+        return new Resource($this->getModels()->getModel('resource')->getResourceById($resource));
+    }
     
     /**
     * Returns the User class of the $input parameter.
@@ -873,7 +970,7 @@ class XenAPI {
                 return new User($this->models, $this->models->getUserModel()->getUserByName($input));
             }
             return $user;
-        } else if($this->models->getUserModel()->couldBeEmail($input)) {
+        } else if ($this->models->getUserModel()->couldBeEmail($input)) {
             // $input is an e-mail, return the user of the e-mail.
             return new User($this->models, $this->models->getUserModel()->getUserByEmail($input));
         } else {
@@ -972,7 +1069,246 @@ class Models {
     public function getDatabase() {
         return $this->getModel('database');
     }
-}    
+} 
+
+/**
+* This class contains all the functions and all the relevant data of a XenForo resource.
+*/
+class Resource {
+    private $data;
+    
+    /**
+    * Default constructor.
+    */
+    public function __construct($data) {
+        $this->data = $data;
+    }
+
+    /**
+    * Returns an array with that conists of limited data.
+    */
+    public static function getLimitedData($resource) {
+       return array('id'               => $resource->getID(),
+                    'title'            => $resource->getTitle(),
+                    'author_id'        => $resource->getAuthorUserID(),
+                    'author_username'  => $resource->getAuthorUsername(),
+                    'state'            => $resource->getState(),
+                    'creation_date'    => $resource->getCreationDate(),
+                    'category_id'      => $resource->getCategoryID(),
+                    'version_id'       => $resource->getCurrentVersionID(),
+                    'description_id'   => $resource->getDescriptionUpdateID(),
+                    'thread_id'        => $resource->getDiscussionThreadID(),
+                    'external_url'     => $resource->getExternalURL(),
+                    'price'            => $resource->getPrice(),
+                    'currency'         => $resource->getCurrency(),
+                    'times_downloaded' => $resource->getTimesDownloaded(),
+                    'times_rated'      => $resource->getTimesRated(),
+                    'rating_sum'       => $resource->getRatingSum(),
+                    'rating_avg'       => $resource->getAverageRating(),
+                    'rating_weighted'  => $resource->getWeightedRating(),
+                    'times_updated'    => $resource->getTimesUpdated(),
+                    'times_reviewed'   => $resource->getTimesReviewed(),
+                    'last_update'      => $resource->getLastUpdateDate());
+    }
+
+    /**
+    * Returns an array which contains all the data of the resource.
+    */
+    public function getData() {
+        return $this->data;
+    }
+
+    /**
+    * Returns TRUE if the resource is valid, returns FALSE if not.
+    */
+    public function isValid() {
+        return $this->data != NULL && is_array($this->data) && isset($this->data['resource_id']) && $this->data['resource_id'] != NULL;
+    }
+
+    /**
+    * Returns the ID of the resource.
+    */
+    public function getID() {
+        return $this->data['resource_id'];
+    }
+
+    /**
+    * Returns the title of the resource.
+    */
+    public function getTitle() {
+        return $this->data['title'];
+    }
+
+    /**
+    * Returns the tag line of the resource.
+    */
+    public function getTagLine() {
+        return $this->data['tag_line'];
+    }
+
+    /**
+    * Returns the ID of the author.
+    */
+    public function getAuthorUserID() {
+        return $this->data['user_id'];
+    }
+
+    /**
+    * Returns the username of the author.
+    */
+    public function getAuthorUsername() {
+        return $this->data['username'];
+    }
+
+
+    /**
+    * Returns the state of the resource.
+    * TODO
+    */
+    public function getState() {
+        return $this->data['resource_state'];
+    }
+
+    /**
+    * Returns the creation date of the resource.
+    */
+    public function getCreationDate() {
+        return $this->data['resource_date'];
+    }
+
+    /**
+    * Returns the category ID of the resource.
+    */
+    public function getCategoryID() {
+        return $this->data['resource_category_id'];
+    }
+
+    /**
+    * Returns the current version ID of the resource.
+    */
+    public function getCurrentVersionID() {
+        return $this->data['current_version_id'];
+    }
+
+    /**
+    * Returns the current description update ID of the resource.
+    */
+    public function getDescriptionUpdateID() {
+        return $this->data['description_update_id'];
+    }
+
+    /**
+    * Returns the discussion thread ID of the resource.
+    */
+    public function getDiscussionThreadID() {
+        return $this->data['discussion_thread_id'];
+    }
+
+    /**
+    * Returns the external URL of the resource.
+    */
+    public function getExternalURL() {
+        return $this->data['external_url'];
+    }
+
+    /**
+    * Returns TRUE if the resource is fileless, FALSE if not.
+    */
+    public function isFileless() {
+        return $this->data['is_fileless'] == 1;
+    }
+
+    /**
+    * Returns the external purchase URL of the resource if it has any.
+    */
+    public function getExternalPurchaseURL() {
+        return $this->data['external_purchase_url'];
+    }
+
+    /**
+    * Returns the price of the resource.
+    */
+    public function getPrice() {
+        return $this->data['price'];
+    }
+
+    /**
+    * Returns the currency of the price of the resource.
+    */
+    public function getCurrency() {
+        return $this->data['currency'];
+    }
+
+    /**
+    * Returns the amount of times the resource has been downloaded.
+    */
+    public function getTimesDownloaded() {
+        return $this->data['download_count'];
+    }
+
+    /**
+    * Returns the amount of times the resource has been rated.
+    */
+    public function getTimesRated() {
+        return $this->data['rating_count'];
+    }
+
+    /**
+    * Returns the sum of the ratings.
+    */
+    public function getRatingSum() {
+        return $this->data['rating_sum'];
+    }
+
+    /**
+    * Returns the average rating of the resource.
+    */
+    public function getAverageRating() {
+        return $this->data['rating_avg'];
+    }
+
+    /**
+    * Returns the weighted rating of the resource.
+    */
+    public function getWeightedRating() {
+        return $this->data['rating_weighted'];
+    }
+
+    /**
+    * Returns the amount of times the resource has been updated.
+    */
+    public function getTimesUpdated() {
+        return $this->data['update_count'];
+    }
+
+    /**
+    * Returns the amount of times the resource has been reviewed.
+    */
+    public function getTimesReviewed() {
+        return $this->data['review_count'];
+    }
+
+    /**
+    * Returns the last update date of the resource.
+    */
+    public function getLastUpdateDate() {
+        return $this->data['last_update'];
+    }
+
+    /**
+    * Returns the alternative support URL of the resource.
+    */
+    public function getAlternativeSupportURL() {
+        return $this->data['alt_support_url'];
+    }
+
+    /**
+    * Returns TRUE if the resource had first visible.
+    */
+    public function hadFirstVisible() {
+        return $this->data['had_first_visible'] == 1;
+    }
+}   
 
 /**
 * This class contains all the functions and all the relevant data of a XenForo addon.
@@ -985,26 +1321,35 @@ class Addon {
     */
     public function __construct($data) {
         $this->data = $data;
-        // $this->class = XenForo_Autoloader::getInstance()->autoloaderClassToFile($addon);
-        // $this->installed = file_exists($this->class);
     }
 
     /**
-    * Returns an array which contains all the data of the user.
+    * Returns an array with that conists of limited data.
+    */
+    public static function getLimitedData($addon) {
+       return array('id'      => $addon->getID(),
+                    'title'   => $addon->getTitle(),
+                    'version' => $addon->getVersionString(),
+                    'enabled' => $addon->isEnabled(),
+                    'url'     => $addon->getURL());
+    }
+
+    /**
+    * Returns an array which contains all the data of the addon.
     */
     public function getData() {
         return $this->data;
     }
 
     /**
-    * Returns TRUE if the addon is installed, returns false if not.
+    * Returns TRUE if the addon is installed, returns FALSE if not.
     */
     public function isInstalled() {
-        return $this->data != NULL && is_array($this->data) && isset($this->data['addon_id']);
+        return $this->data != NULL && is_array($this->data) && isset($this->data['addon_id']) && $this->data['addon_id'] != NULL;
     }
 
     /**
-    * Returns TRUE if the addon is enabled, returns false if not.
+    * Returns TRUE if the addon is enabled, returns FALSE if not.
     */
     public function isEnabled() {
         return $this->data['active'] == 1;
