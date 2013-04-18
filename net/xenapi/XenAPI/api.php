@@ -100,8 +100,7 @@ class RestAPI {
                             10 => 'You do not have permission to use the "{ERROR}" action',
                             11 => '"{ERROR}" is a supported action but there is no code for it yet',
                             12 => '"{ERROR}" is a unknown request method.',
-                            13 => '"{ERROR}" is not an installed addon.',
-                            14 => '"{ERROR}" is an installed addon but it is not enabled.');
+                            13 => '"{ERROR}" is not an installed addon.');
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -135,6 +134,13 @@ class RestAPI {
             // Sets the hash variable if the hash argument is set.
             $this->hash = $this->getRequest('hash');
         }
+    }
+
+    /**
+    * Returns the XenAPI, returns NULL if the XenAPI was not set.
+    */
+    public function getXenAPI() {
+        return $this->xenAPI;
     }
 
     /**
@@ -714,6 +720,41 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($addons);
                 break;
+            case 'getaddon': 
+                /**
+                * Returns the addon information depending on the 'value' arguement.
+                *
+                * NOTE: Only addon ID's can be used for the 'value' parameter.
+                *       Addon ID's can be found by using the 'getAlerts' action.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getAddon&value=PostRating&hash=USERNAME:HASH
+                *   - api.php?action=getAddon&value=PostRating&hash=API_KEY
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' arguement is set but empty.
+                    $this->throwErrorF(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the addon from XenForo.
+                $addon = $this->getXenAPI()->getAddon($string);
+                if (!$addon->isInstalled()) {
+                    // Could not find the addon, throw error.
+                    $this->throwErrorF(13, $string);
+                } else {
+                    // Addon was found, send response.
+                    $this->sendResponse(array('id'      => $addon->getID(),
+                                              'title'   => $addon->getTitle(),
+                                              'version' => $addon->getVersionString(),
+                                              'enabled' => $addon->isEnabled(),
+                                              'url'     => $addon->getURL()));
+                }
+                break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwErrorF(11, $this->getAction());
@@ -811,7 +852,7 @@ class XenAPI {
     * Returns the Addon class of the $addon parameter.
     */
     public function getAddon($addon) {
-        return new Addon($addon);
+        return new Addon($this->getModels()->getModel('addon')->getAddOnById($addon));
     }
     
     /**
