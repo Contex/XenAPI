@@ -79,8 +79,8 @@ class RestAPI {
                              'getusers'           => 'public', 
                              'getgroup'           => 'public', 
                              'authenticate'       => 'public',
-                             'getaddons'          => 'authenticated',
-                             'getaddon'           => 'authenticated');
+                             'getaddons'          => 'administrator',
+                             'getaddon'           => 'administrator');
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
     private $user_actions = array('getalerts', 'getuser', 'getavatar');
@@ -790,6 +790,7 @@ class XenAPI {
     * Returns a list of addons in the Addon class.
     */
     public function getAddons($type = 'all') {
+        // TODO: add support to grab addon options.
         $type = strtolower($type);
         $allowed_types = array('all', 'enabled', 'disabled');
         if (!in_array($type, $allowed_types)) {
