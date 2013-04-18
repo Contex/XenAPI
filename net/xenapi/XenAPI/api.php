@@ -840,67 +840,6 @@ class XenAPI {
     }
 }
 
-class Addon {
-    private $data;
-    
-    /**
-    * Default constructor.
-    */
-    public function __construct($data) {
-        $this->data = $data;
-        #$this->class = XenForo_Autoloader::getInstance()->autoloaderClassToFile($addon);
-        #$this->installed = file_exists($this->class);
-    }
-
-    public function getData() {
-        return $this->data;
-    }
-
-    public function isInstalled() {
-        return $this->data != NULL && is_array($this->data) && isset($this->data['addon_id']);
-    }
-
-    public function isEnabled() {
-        return $this->data['active'] == 1;
-    }
-
-    public function getID() {
-        return $this->data['addon_id'];
-    }
-
-    public function getTitle() {
-        return $this->data['title'];
-    }
-
-    public function getVersionString() {
-        return $this->data['version_string'];
-    }
-
-    public function getVersionID() {
-        return $this->data['version_id'];
-    }
-
-    public function getURL() {
-        return $this->data['url'];
-    }
-
-    public function getInstallCallbackClass() {
-        return $this->data['install_callback_class'];
-    }
-
-    public function getInstallCallbackMethod() {
-        return $this->data['install_callback_method'];
-    }
-
-    public function getUninstallCallbackClass() {
-        return $this->data['uninstall_callback_class'];
-    }
-
-    public function getUninstasllCallbackMethod() {
-        return $this->data['uninstall_callback_class'];
-    }
-}
-
 /**
 * This class contains all the required models of XenForo.
 */
@@ -991,6 +930,106 @@ class Models {
         return $this->getModel('database');
     }
 }    
+
+/**
+* This class contains all the functions and all the relevant data of a XenForo addon.
+*/
+class Addon {
+    private $data;
+    
+    /**
+    * Default constructor.
+    */
+    public function __construct($data) {
+        $this->data = $data;
+        // $this->class = XenForo_Autoloader::getInstance()->autoloaderClassToFile($addon);
+        // $this->installed = file_exists($this->class);
+    }
+
+    /**
+    * Returns an array which contains all the data of the user.
+    */
+    public function getData() {
+        return $this->data;
+    }
+
+    /**
+    * Returns TRUE if the addon is installed, returns false if not.
+    */
+    public function isInstalled() {
+        return $this->data != NULL && is_array($this->data) && isset($this->data['addon_id']);
+    }
+
+    /**
+    * Returns TRUE if the addon is enabled, returns false if not.
+    */
+    public function isEnabled() {
+        return $this->data['active'] == 1;
+    }
+
+    /**
+    * Returns the ID of the addon.
+    */
+    public function getID() {
+        return $this->data['addon_id'];
+    }
+
+    /**
+    * Returns the title of the addon.
+    */
+    public function getTitle() {
+        return $this->data['title'];
+    }
+
+    /**
+    * Returns the version string of the addon.
+    */
+    public function getVersionString() {
+        return $this->data['version_string'];
+    }
+
+    /**
+    * Returns the version ID of the addon.
+    */
+    public function getVersionID() {
+        return $this->data['version_id'];
+    }
+
+    /**
+    * Returns the URL of the addon.
+    */
+    public function getURL() {
+        return $this->data['url'];
+    }
+
+    /**
+    * Returns the install callback class of the addon.
+    */
+    public function getInstallCallbackClass() {
+        return $this->data['install_callback_class'];
+    }
+
+    /**
+    * Returns the install callback method of the addon.
+    */
+    public function getInstallCallbackMethod() {
+        return $this->data['install_callback_method'];
+    }
+
+    /**
+    * Returns the uninstall callback class of the addon.
+    */
+    public function getUninstallCallbackClass() {
+        return $this->data['uninstall_callback_class'];
+    }
+
+    /**
+    * Returns the uninstall callback method of the addon.
+    */
+    public function getUninstasllCallbackMethod() {
+        return $this->data['uninstall_callback_class'];
+    }
+}
 
 /**
 * This class contains all the functions and all the relevant data of a XenForo user.
