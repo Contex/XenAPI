@@ -723,7 +723,7 @@ class RestAPI {
                     $addons[] = Addon::getLimitedData($addon);
                 }
                 // Send the response.
-                $this->sendResponse($addons);
+                $this->sendResponse(array('count' => count($addons), 'addons' => $addons));
                 break;
             case 'getaddon': 
                 /**
@@ -802,7 +802,7 @@ class RestAPI {
                     $resources[] = Resource::getLimitedData($resource);
                 }
                 // Send the response.
-                $this->sendResponse(array('total' => count($resources), 'resources' => $resources));
+                $this->sendResponse(array('count' => count($resources), 'resources' => $resources));
             case 'getresource': 
                 /**
                 * Returns the resource information depending on the 'value' arguement.
