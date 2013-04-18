@@ -19,25 +19,24 @@ $time_start = microtime(true);
 $restAPI = new RestAPI(); 
 $restAPI->setAPIKey('b8e7ae12510bdfb110bd');
 
-if (!$restAPI->getAPIKey != NULL && !$restAPI->hasRequest('hash')) {
+if ($restAPI->getAPIKey() != NULL && !$restAPI->hasRequest('hash')) {
     // Hash argument is required and was not found, throw error.
     $restAPI->throwErrorF(3, 'hash');
+} else if (!$restAPI->getHash()) {
+    // Hash argument is empty or not set, throw error. 
+    $restAPI->throwErrorF(1, 'hash');
+} else if (!$restAPI->isAuthenticated() && !$restAPI->isPublicAction()) {
+    // Hash is not valid and action is not public, throw error.
+    $restAPI->throwErrorF(6, $restAPI->getHash());
 } else if (!$restAPI->hasRequest('action')) {
     // Action argument was not found, throw error.
     $restAPI->throwErrorF(3, 'action');
-}
-if (!$restAPI->getAction()) {
+} else if (!$restAPI->getAction()) {
     // Action argument is empty or not set, throw error. 
     $restAPI->throwErrorF(1, 'action');
 } else if (!$restAPI->isSupportedAction()) {
     // Action is not supported, throw error.
     $restAPI->throwErrorF(2, $restAPI->getAction());
-} else if (!$restAPI->hasRequest('hash') && !$restAPI->isPublicAction()) {
-    // Action is not public and requires a hash but the hash argument is not set, throw error.
-    $restAPI->throwErrorF(1, 'hash');
-} else if (!$restAPI->isAuthenticated() && !$restAPI->isPublicAction()) {
-    // Hash is not valid and action is not public, throw error.
-    $restAPI->throwErrorF(6, $restAPI->getHash());
 } else if (!$restAPI->isPermitted()) {
     // User does not have permission to use this action, throw error.
     if ($restAPI->hasRequest('value') && $restAPI->isUserAction()) {
@@ -261,7 +260,7 @@ class RestAPI {
     * Returns the permission name of the action.
     */
     public function getActionPermission() {
-        return strtolower($this->actions[strtolower($this->getAction())]);
+        return isset($this->data['action']) && strtolower($this->actions[strtolower($this->getAction())]);
     }
     
     /**
@@ -293,21 +292,21 @@ class RestAPI {
     * Returns true if the action is supported, false if not.
     */
     public function isSupportedAction() {
-        return array_key_exists(strtolower($this->data['action']), $this->actions);
+        return isset($this->data['action']) && array_key_exists(strtolower($this->data['action']), $this->actions);
     }
     
     /**
     * Returns true if the action is a public action (does not require a hash), false if not.
     */
     public function isPublicAction() {
-        return strtolower($this->actions[strtolower($this->data['action'])]) == 'public';
+        return isset($this->data['action']) && strtolower($this->actions[strtolower($this->data['action'])]) == 'public';
     }
     
     /**
     * Returns true if the action is a user action (the 'value' parameter has to be an username/id/email), false if not.
     */
     public function isUserAction() {
-        return in_array(strtolower($this->data['action']), $this->user_actions);
+        return isset($this->data['action']) && in_array(strtolower($this->data['action']), $this->user_actions);
     }
     
     /**
