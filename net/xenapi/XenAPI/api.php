@@ -770,6 +770,7 @@ class RestAPI {
 			$time_end = microtime(TRUE);
 			$data['execution_time'] = $time_end - $time_start;
 		}
+        header('Content-type: application/json');
         die(json_encode($data));
     }
 }
