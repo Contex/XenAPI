@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-$time_start = microtime(true);
+$time_start = microtime(TRUE);
 $restAPI = new RestAPI(); 
 $restAPI->setAPIKey('b8e7ae12510bdfb110bd');
 
@@ -78,7 +78,9 @@ class RestAPI {
                              'getavatar'          => 'public', 
                              'getusers'           => 'public', 
                              'getgroup'           => 'public', 
-                             'authenticate'       => 'public');
+                             'authenticate'       => 'public',
+                             'getaddons'          => 'authenticated',
+                             'getaddon'           => 'authenticated');
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
     private $user_actions = array('getalerts', 'getuser', 'getavatar');
@@ -97,7 +99,9 @@ class RestAPI {
                             9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
                             10 => 'You do not have permission to use the "{ERROR}" action',
                             11 => '"{ERROR}" is a supported action but there is no code for it yet',
-                            12 => '"{ERROR}" is a unknown request method.');
+                            12 => '"{ERROR}" is a unknown request method.',
+                            13 => '"{ERROR}" is not an installed addon.',
+                            14 => '"{ERROR}" is an installed addon but it is not enabled.');
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -134,7 +138,7 @@ class RestAPI {
     }
 
     /**
-    * Returns the API key, returns false if an API key was not set.
+    * Returns the API key, returns FALSE if an API key was not set.
     */
     public function getAPIKey() {
         return $this->apikey;
@@ -148,7 +152,7 @@ class RestAPI {
     }
     
     /**
-    * Return the hash, returns false if the hash was not set.
+    * Return the hash, returns FALSE if the hash was not set.
     */
     public function getHash() {
         return $this->hash;
@@ -156,18 +160,18 @@ class RestAPI {
     
     /**
     * Checks if the request is authenticated.
-    * Returns true if the hash equals the API key.
-    * Returns true if the hash equals the user hash.
-    * Returns false if none of the above are true.
+    * Returns TRUE if the hash equals the API key.
+    * Returns TRUE if the hash equals the user hash.
+    * Returns FALSE if none of the above are TRUE.
     */
     public function isAuthenticated() {
         if ($this->getHash()) {
             // Hash argument is set, continue.
             if ($this->getHash() == $this->getAPIKey()) {
-                // The hash equals the API key, return true.
-                return true;
+                // The hash equals the API key, return TRUE.
+                return TRUE;
             }
-            if (strpos($this->getHash(), ':') !== false) {
+            if (strpos($this->getHash(), ':') !== FALSE) {
                 // The hash contains : (username:hash), split it into an array.
                 $array = explode(':', $this->getHash());
                 // Get the user and check if the user is valid (registered).
@@ -178,17 +182,17 @@ class RestAPI {
                     $ddata = unserialize($record['data']);
                     if ($ddata['hash'] == $array[1]) {
                         // The hash in the authentication record equals the hash in the 'hash' argument.
-                        return true;
+                        return TRUE;
                     }
                 }
             }
         }
-        return false;
+        return FALSE;
     }
     
     /**
     * Checks if the request is permitted.
-    * Returns true if API key is set and valid or the action's permission is public.
+    * Returns TRUE if API key is set and valid or the action's permission is public.
     */
     public function isPermitted() {
         $permission = $this->getActionPermission();
@@ -196,9 +200,9 @@ class RestAPI {
         if ($this->isAuthenticated() && $this->getUser()) {
             switch ($permission) {
                 case 'public':
-                    return true;
+                    return TRUE;
                 case 'authenticated':
-                    return true;
+                    return TRUE;
                 case 'moderator':
                     return $this->getUser()->isModerator();
                 case 'administrator':
@@ -207,39 +211,39 @@ class RestAPI {
                     // Check if the 'value' argument is set.
                     if ($this->hasRequest('value') && $this->getRequest('value')) {
                         /**
-                        * Returns true if the 'value' argument equals the username of the user hash.
+                        * Returns TRUE if the 'value' argument equals the username of the user hash.
                         * In other words, the request is not permitted if 'value' != username.
                         */
                         return $this->getUser()->getUsername() == $this->getRequest('value');
                     }
-                    // The value argument is not, request is permitted, return true.
-                    return true;
+                    // The value argument is not, request is permitted, return TRUE.
+                    return TRUE;
             }
         }
-        // Returns true if permission of the action is public or the request has a valid API key.
+        // Returns TRUE if permission of the action is public or the request has a valid API key.
         return $permission == 'public' || $this->hasAPIKey();
     }
     
     /**
-    * Returns true if the request has an API key that is valid, returns false if not.
+    * Returns TRUE if the request has an API key that is valid, returns FALSE if not.
     */
     public function hasAPIKey() {
         if ($this->getHash()) {
             return $this->getHash() == $this->getAPIKey();
         }
-        return false;
+        return FALSE;
     }
     
     /**
     * Returns the User class of the username if the hash is set and is an userhash.
-    * Returns false if the hash is not an userhash.
+    * Returns FALSE if the hash is not an userhash.
     */
     public function getUser() {
-        if (strpos($this->getHash(), ':') !== false) {
+        if (strpos($this->getHash(), ':') !== FALSE) {
             $array = explode(':', $this->getHash());
             return $this->xenAPI->getUser($array[0]);
         }    
-        return false;
+        return FALSE;
     }
     
     /**
@@ -264,20 +268,20 @@ class RestAPI {
     }
     
     /**
-    * Returns true if the '$key' is set a argument, returns false if not.
+    * Returns TRUE if the '$key' is set a argument, returns FALSE if not.
     */
     public function hasRequest($key) {
         return isset($this->data[strtolower($key)]);
     }
     
     /**
-    * Gets the data of the '$key', returns false if the '$key' argument was not set.
+    * Gets the data of the '$key', returns FALSE if the '$key' argument was not set.
     */
     public function getRequest($key) {
         if ($this->hasRequest($key)) {
             return $this->data[strtolower($key)];
         } else {
-            return false;
+            return FALSE;
         }
     }
     
@@ -289,21 +293,21 @@ class RestAPI {
     }
     
     /**
-    * Returns true if the action is supported, false if not.
+    * Returns TRUE if the action is supported, FALSE if not.
     */
     public function isSupportedAction() {
         return isset($this->data['action']) && array_key_exists(strtolower($this->data['action']), $this->actions);
     }
     
     /**
-    * Returns true if the action is a public action (does not require a hash), false if not.
+    * Returns TRUE if the action is a public action (does not require a hash), FALSE if not.
     */
     public function isPublicAction() {
         return isset($this->data['action']) && strtolower($this->actions[strtolower($this->data['action'])]) == 'public';
     }
     
     /**
-    * Returns true if the action is a user action (the 'value' parameter has to be an username/id/email), false if not.
+    * Returns TRUE if the action is a user action (the 'value' parameter has to be an username/id/email), FALSE if not.
     */
     public function isUserAction() {
         return isset($this->data['action']) && in_array(strtolower($this->data['action']), $this->user_actions);
@@ -313,7 +317,7 @@ class RestAPI {
     * Gets the error message without any parameter.
     */
     public function getError($error) {
-        $this->getErrorF($error, null);
+        $this->getErrorF($error, NULL);
     }
 
     /**
@@ -321,7 +325,7 @@ class RestAPI {
     */
     public function getErrorF($error, $extra) {
         if (array_key_exists($error, $this->errors)) {
-            if ($extra != null) {
+            if ($extra != NULL) {
                 return str_replace('{ERROR}', $extra, $this->errors[$error]);
             } else {
                 return $this->errors[$error];
@@ -335,14 +339,14 @@ class RestAPI {
     * Throw the error message.
     */
     public function throwError($error) {
-        $this->throwErrorF($error, null);
+        $this->throwErrorF($error, NULL);
     }
     
     /**
     * Throw the error message.
     */
     public function throwErrorF($error, $extra) {
-        if ($extra != null) {
+        if ($extra != NULL) {
             $this->sendResponse(array('error' => $error, 'message' => $this->getErrorF($error, $extra)));
         } else {
             $this->sendResponse(array('error' => $error, 'message' => $this->getError($error)));
@@ -398,8 +402,8 @@ class RestAPI {
                 *
                 * Options for the 'type' arguement are:
                 *     - fetchPopupItems: Fetch alerts viewed in the last options:alertsPopupExpiryHours hours.
-                *   - fetchRecent:     Fetch alerts viewed in the last options:alertExpiryDays days.
-                *   - fetchAll:        Fetch alerts regardless of their view_date.
+                *     - fetchRecent:     Fetch alerts viewed in the last options:alertExpiryDays days.
+                *     - fetchAll:        Fetch alerts regardless of their view_date.
                 *
                 * For more information, see /library/XenForo/Model/Alert.php.
                 *
@@ -663,6 +667,53 @@ class RestAPI {
                     }
                 }
                 break;
+            case 'getaddons':
+                /**
+                * Returns a list of addons, if a type is not specified or not supported, 
+                * default (all) is used instead.
+                *
+                * Options for the 'type' argument are:
+                *   - all:      This is default, and will return all the addons, ignoring if they are installed or not.
+                *   - enabled:  Fetches all the addons that are enabled, ignoring the disabled ones.
+                *   - disabled: Fetches all the addons that are disabled, ignoring the enabled ones.
+                *
+                * For more information, see /library/XenForo/Model/Alert.php.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getAddons&hash=USERNAME:HASH
+                *   - api.php?action=getAddons&hash=API_KEY
+                *   - api.php?action=getAddons&type=enabled&hash=USERNAME:HASH
+                *   - api.php?action=getAddons&type=enabled&hash=API_KEY
+                */
+                /* 
+                * Check if the request has the 'type' arguement set, 
+                * if it doesn't it uses the default (all).
+                */
+                if ($this->hasRequest('type')) {
+                    if (!$this->getRequest('type')) {
+                        // Throw error if the 'type' arguement is set but empty.
+                        $this->throwErrorF(1, 'type');
+                        break;
+                    }
+                    // Use the value from the 'type' arguement to get the alerts.
+                    $installed_addons = $this->xenAPI->getAddons($this->getRequest('type'));
+                } else {
+                    // Use the default type to get the alerts.
+                    $installed_addons = $this->xenAPI->getAddons();
+                }
+                // Create an array for the addons.
+                $addons = array();
+                // Loop through all the addons and strip out any information that we don't need.
+                foreach ($installed_addons as $addon) {
+                    $addons[] = array('id'      => $addon->getID(),
+                                      'title'   => $addon->getTitle(),
+                                      'version' => $addon->getVersionString(),
+                                      'enabled' => $addon->isEnabled(),
+                                      'url'     => $addon->getURL());
+                }
+                // Send the response.
+                $this->sendResponse($addons);
+                break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwErrorF(11, $this->getAction());
@@ -675,7 +726,7 @@ class RestAPI {
     public function sendResponse($data) {
         if ($this->hasRequest('performance')) {
     		global $time_start;
-			$time_end = microtime(true);
+			$time_end = microtime(TRUE);
 			$data['execution_time'] = $time_end - $time_start;
 		}
         die(json_encode($data));
@@ -697,20 +748,21 @@ class XenAPI {
         require($this->xfDir . '/library/XenForo/Autoloader.php');
         XenForo_Autoloader::getInstance()->setupAutoloader($this->xfDir. '/library');
         XenForo_Application::initialize($this->xfDir . '/library', $this->xfDir);
-        XenForo_Application::set('page_start_time', microtime(true));
+        XenForo_Application::set('page_start_time', microtime(TRUE));
         $this->models = new Models();
-        $this->models->setUserModel(XenForo_Model::create('XenForo_Model_User'));
-        $this->models->setAlertModel(XenForo_Model::create('XenForo_Model_Alert'));
-        $this->models->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
-        $this->models->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
-        $this->models->setModel('database', XenForo_Application::get('db'));
+        $this->getModels()->setUserModel(XenForo_Model::create('XenForo_Model_User'));
+        $this->getModels()->setAlertModel(XenForo_Model::create('XenForo_Model_Alert'));
+        $this->getModels()->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
+        $this->getModels()->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
+        $this->getModels()->setModel('addon', XenForo_Model::create('XenForo_Model_AddOn'));
+        $this->getModels()->setModel('database', XenForo_Application::get('db'));
     }
     
     /**
     * Returns the Database model.
     */
     public function getDatabase() {
-        return $this->models->getModel('database');
+        return $this->getModels()->getModel('database');
     }
     
     /**
@@ -724,25 +776,52 @@ class XenAPI {
     * Grabs the User class of the last registered user.
     */
     public function getLatestUser() {
-        return new User($this->models, $this->models->getUserModel()->getLatestUser());
+        return new User($this->getModels(), $this->getModels()->getUserModel()->getLatestUser());
     }
     
     /**
     * Returns the total count of registered users on XenForo.
     */
     public function getTotalUsersCount() {
-        return $this->models->getUserModel()->countTotalUsers();
+        return $this->getModels()->getUserModel()->countTotalUsers();
+    }
+
+    /**
+    * Returns a list of addons in the Addon class.
+    */
+    public function getAddons($type = 'all') {
+        $type = strtolower($type);
+        $allowed_types = array('all', 'enabled', 'disabled');
+        if (!in_array($type, $allowed_types)) {
+            $type = 'all';
+        }
+        $installed_addons = $this->getModels()->getModel('addon')->getAllAddOns();
+        $addons = array();
+        foreach ($installed_addons as $addon) {
+            $temp_addon = new Addon($addon);
+            if (($type == 'enabled' && $temp_addon->isEnabled()) || ($type == 'disabled' && !$temp_addon->isEnabled()) || $type == 'all') {
+                $addons[] = $temp_addon;
+            }
+        }
+        return $addons;
+    }
+
+    /**
+    * Returns the Addon class of the $addon parameter.
+    */
+    public function getAddon($addon) {
+        return new Addon($addon);
     }
     
     /**
     * Returns the User class of the $input parameter.
     *
     * The $input parameter can be an user ID, username or e-mail.
-    * Returns false if $input is null.
+    * Returns FALSE if $input is NULL.
     */
     public function getUser($input) {
-        if ($input == false || $input == null) {
-            return false;
+        if ($input == FALSE || $input == NULL) {
+            return FALSE;
         } else if (is_numeric($input)) {
             // $input is a number, grab the user by an ID.
             $user = new User($this->models, $this->models->getUserModel()->getUserById($input));
@@ -758,6 +837,67 @@ class XenAPI {
             // $input is an username, return the user of the username.
             return new User($this->models, $this->models->getUserModel()->getUserByName($input));
         }
+    }
+}
+
+class Addon {
+    private $data;
+    
+    /**
+    * Default constructor.
+    */
+    public function __construct($data) {
+        $this->data = $data;
+        #$this->class = XenForo_Autoloader::getInstance()->autoloaderClassToFile($addon);
+        #$this->installed = file_exists($this->class);
+    }
+
+    public function getData() {
+        return $this->data;
+    }
+
+    public function isInstalled() {
+        return $this->data != NULL && is_array($this->data) && isset($this->data['addon_id']);
+    }
+
+    public function isEnabled() {
+        return $this->data['active'] == 1;
+    }
+
+    public function getID() {
+        return $this->data['addon_id'];
+    }
+
+    public function getTitle() {
+        return $this->data['title'];
+    }
+
+    public function getVersionString() {
+        return $this->data['version_string'];
+    }
+
+    public function getVersionID() {
+        return $this->data['version_id'];
+    }
+
+    public function getURL() {
+        return $this->data['url'];
+    }
+
+    public function getInstallCallbackClass() {
+        return $this->data['install_callback_class'];
+    }
+
+    public function getInstallCallbackMethod() {
+        return $this->data['install_callback_method'];
+    }
+
+    public function getUninstallCallbackClass() {
+        return $this->data['uninstall_callback_class'];
+    }
+
+    public function getUninstasllCallbackMethod() {
+        return $this->data['uninstall_callback_class'];
     }
 }
 
@@ -856,7 +996,7 @@ class Models {
 * This class contains all the functions and all the relevant data of a XenForo user.
 */
 class User {
-    private $models, $data, $registered = false;
+    private $models, $data, $registered = FALSE;
     
     /**
     * Default constructor.
@@ -865,7 +1005,7 @@ class User {
         $this->models = $models;
         $this->data = $data;
         if (!empty($data)) {
-            $this->registered = true;
+            $this->registered = TRUE;
         }
     }
     
@@ -937,21 +1077,21 @@ class User {
     }
     
     /**
-    * Returns true if the user is a global moderator.
+    * Returns TRUE if the user is a global moderator.
     */
     public function isModerator() {
         return $this->data['is_moderator'] == 1;
     }
     
     /**
-    * Returns true if the user an administrator.
+    * Returns TRUE if the user an administrator.
     */
     public function isAdmin() {
         return $this->data['is_admin'] == 1;
     }
     
     /**
-    * Returns true if the user is banned.
+    * Returns TRUE if the user is banned.
     */
     public function isBanned() {
         return $this->data['is_banned'] == 1;
