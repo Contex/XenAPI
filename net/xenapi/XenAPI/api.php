@@ -17,9 +17,12 @@
  */
 $time_start = microtime(TRUE);
 $restAPI = new RestAPI(); 
-$restAPI->setAPIKey('b8e7ae12510bdfb110bd');
+$restAPI->setAPIKey('API_KEY');
 
-if ($restAPI->getAPIKey() != NULL && !$restAPI->hasRequest('hash')) {
+if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') { 
+    // API is set but not changed from the default API key.
+    $restAPI->throwError(17);
+} else if ($restAPI->getAPIKey() != NULL && !$restAPI->hasRequest('hash')) {
     // Hash argument is required and was not found, throw error.
     $restAPI->throwErrorF(3, 'hash');
 } else if (!$restAPI->getHash()) {
@@ -104,7 +107,9 @@ class RestAPI {
                             12 => '"{ERROR}" is a unknown request method.',
                             13 => '"{ERROR}" is not an installed addon.',
                             14 => '"{ERROR}" is not an author of any resources.',
-                            15 => 'Could not find a resource with ID "{ERROR}".');
+                            15 => 'Could not find a resource with ID "{ERROR}".',
+                            16 => 'Could not find a required model to perform this request: "{ERROR}".',
+                            17 => 'The API key has not been changed, make sure you use another API key before using this API.');
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -129,7 +134,7 @@ class RestAPI {
             default:
                 $this->throwErrorF(12, $this->method);
                 break;
-        } 
+        }
         $this->xenAPI = new XenAPI();
 
         // Lowercase the key data, ignores the case of the arguments.
@@ -327,7 +332,7 @@ class RestAPI {
     * Gets the error message without any parameter.
     */
     public function getError($error) {
-        $this->getErrorF($error, NULL);
+        return $this->getErrorF($error, NULL);
     }
 
     /**
@@ -349,14 +354,14 @@ class RestAPI {
     * Throw the error message.
     */
     public function throwError($error) {
-        $this->throwErrorF($error, NULL);
+        $this->throwErrorF($error);
     }
     
     /**
     * Throw the error message.
     */
-    public function throwErrorF($error, $extra) {
-        if ($extra != NULL) {
+    public function throwErrorF($error, $extra = NULL) {
+        if ($extra != FALSE && $extra != NULL) {
             $this->sendResponse(array('error' => $error, 'message' => $this->getErrorF($error, $extra)));
         } else {
             $this->sendResponse(array('error' => $error, 'message' => $this->getError($error)));
@@ -768,6 +773,10 @@ class RestAPI {
                 * Check if the request has the 'author' arguement set, 
                 * if it doesn't it uses the default (all).
                 */
+                if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
+                    $this->throwErrorF(16, 'resource');
+                    break;
+                }
                 if ($this->hasRequest('author')) {
                     if (!$this->getRequest('author')) {
                         // Throw error if the 'author' arguement is set but empty.
@@ -805,6 +814,10 @@ class RestAPI {
                 *   - api.php?action=getResource&value=1&hash=USERNAME:HASH
                 *   - api.php?action=getResource&value=1&hash=API_KEY
                 */
+                if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
+                    $this->throwErrorF(16, 'resource');
+                    break;
+                }
                 if (!$this->hasRequest('value')) {
                     // The 'value' arguement has not been set, throw error.
                     $this->throwErrorF(3, 'value');
@@ -868,7 +881,11 @@ class XenAPI {
         $this->getModels()->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
         $this->getModels()->setModel('addon', XenForo_Model::create('XenForo_Model_AddOn'));
         $this->getModels()->setModel('database', XenForo_Application::get('db'));
-        $this->getModels()->setModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
+        try {
+            $this->getModels()->setModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
+        } catch (Exception $ignore) {
+            // The resource model is missing, ignore the exceiption.
+        }
     }
     
     /**
@@ -985,7 +1002,14 @@ class XenAPI {
 */
 class Models {
     private $models = array();
-    
+
+    /**
+    * Returns TRUE if the model exists, FALSE if not.
+    */
+    public function hasModel($model) {
+        return isset($this->models[$model]) && $this->models[$model] != NULL;
+    }
+
     /**
     * Returns the array of all the models. 
     */
