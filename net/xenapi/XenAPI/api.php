@@ -16,38 +16,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 $time_start = microtime(true);
-$xf = new XenAPI(); 
-$xf->setAPIKey('b8e7ae12510bdfb110bd');
+$restAPI = new RestAPI(); 
+$restAPI->setAPIKey('b8e7ae12510bdfb110bd');
 
-if ($xf->getRest()->hasRequest('action')) {
-    if (!$xf->getRest()->getAction()) {
-        // Action argument is empty or not set, throw error. 
-        $xf->getRest()->throwErrorF(1, 'action');
-    } else if (!$xf->getRest()->isSupportedAction()) {
-        // Action is not supported, throw error.
-        $xf->getRest()->throwErrorF(2, $xf->getRest()->getAction());
-    } else if (!$xf->getRest()->hasRequest('hash') && !$xf->getRest()->isPublicAction()) {
-        // Action is not public and requires a hash but the hash argument is not set, throw error.
-        $xf->getRest()->throwErrorF(1, 'hash');
-    } else if (!$xf->getRest()->isAuthenticated() && !$xf->getRest()->isPublicAction()) {
-        // Hash is not valid and action is not public, throw error.
-        $xf->getRest()->throwErrorF(6, $xf->getRest()->getHash());
-    } else if (!$xf->getRest()->isPermitted()) {
-        // User does not have permission to use this action, throw error.
-        if ($xf->getRest()->hasRequest('value') && $xf->getRest()->isUserAction()) {
-            $xf->getRest()->throwErrorF(9, $xf->getRest()->getAction());
-        } else {
-            $xf->getRest()->throwErrorF(10, $xf->getRest()->getAction());
-        }
-    }
-    // Process the request.
-    $xf->getRest()->processRequest();
-} else {
+if (!$restAPI->getAPIKey != NULL && !$restAPI->hasRequest('hash')) {
+    // Hash argument is required and was not found, throw error.
+    $restAPI->throwErrorF(3, 'hash');
+} else if (!$restAPI->hasRequest('action')) {
     // Action argument was not found, throw error.
-    $xf->getRest()->throwErrorF(3, 'action');
+    $restAPI->throwErrorF(3, 'action');
 }
+if (!$restAPI->getAction()) {
+    // Action argument is empty or not set, throw error. 
+    $restAPI->throwErrorF(1, 'action');
+} else if (!$restAPI->isSupportedAction()) {
+    // Action is not supported, throw error.
+    $restAPI->throwErrorF(2, $restAPI->getAction());
+} else if (!$restAPI->hasRequest('hash') && !$restAPI->isPublicAction()) {
+    // Action is not public and requires a hash but the hash argument is not set, throw error.
+    $restAPI->throwErrorF(1, 'hash');
+} else if (!$restAPI->isAuthenticated() && !$restAPI->isPublicAction()) {
+    // Hash is not valid and action is not public, throw error.
+    $restAPI->throwErrorF(6, $restAPI->getHash());
+} else if (!$restAPI->isPermitted()) {
+    // User does not have permission to use this action, throw error.
+    if ($restAPI->hasRequest('value') && $restAPI->isUserAction()) {
+        $restAPI->throwErrorF(9, $restAPI->getAction());
+    } else {
+        $restAPI->throwErrorF(10, $restAPI->getAction());
+    }
+}
+// Process the request.
+$restAPI->processRequest();
 
 class RestAPI {
+    const version = '1.2';
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -94,16 +97,16 @@ class RestAPI {
                             8  => 'You do not have permissions to use the "{ERROR}" action',
                             9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
                             10 => 'You do not have permission to use the "{ERROR}" action',
-                            11 => '"{ERROR}" is a supported action but there is no code for it yet');
+                            11 => '"{ERROR}" is a supported action but there is no code for it yet',
+                            12 => '"{ERROR}" is a unknown request method.');
 
-    private $xenAPI, $method, $data = array(), $hash = false;
+    private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
     /**
     * Default constructor for the RestAPI class.
     * The data gets set here depending on what kind of request method is being used.
     */
-    public function __construct($xenAPI) {
-        $this->xenAPI = $xenAPI;
+    public function __construct() {
         $this->method = strtolower($_SERVER['REQUEST_METHOD']);  
         switch ($this->method) {  
             case 'get':  
@@ -113,16 +116,36 @@ class RestAPI {
                 $this->data = $_POST;  
                 break;  
             case 'put':  
+            case 'delete':
                 parse_str(file_get_contents('php://input'), $put_vars);  
                 $this->data = $put_vars;  
                 break;  
+            default:
+                $this->throwErrorF(12, $this->method);
+                break;
         } 
+        $this->xenAPI = new XenAPI();
+
         // Lowercase the key data, ignores the case of the arguments.
         $this->data = array_change_key_case($this->data);
         if ($this->hasRequest('hash')) {
             // Sets the hash variable if the hash argument is set.
             $this->hash = $this->getRequest('hash');
         }
+    }
+
+    /**
+    * Returns the API key, returns false if an API key was not set.
+    */
+    public function getAPIKey() {
+        return $this->apikey;
+    }
+    
+    /**
+    * Sets the API key.
+    */
+    public function setAPIKey($apikey) {
+        $this->apikey = $apikey;
     }
     
     /**
@@ -141,7 +164,7 @@ class RestAPI {
     public function isAuthenticated() {
         if ($this->getHash()) {
             // Hash argument is set, continue.
-            if ($this->getHash() == $this->xenAPI->getAPIKey()) {
+            if ($this->getHash() == $this->getAPIKey()) {
                 // The hash equals the API key, return true.
                 return true;
             }
@@ -203,7 +226,7 @@ class RestAPI {
     */
     public function hasAPIKey() {
         if ($this->getHash()) {
-            return $this->getHash() == $this->xenAPI->getAPIKey();
+            return $this->getHash() == $this->getAPIKey();
         }
         return false;
     }
@@ -665,7 +688,7 @@ class RestAPI {
 * that are needed to use XenForo's classes and functions.
 */
 class XenAPI {
-    private $xfDir, $models, $rest, $visitor, $apikey = false;
+    private $xfDir, $models;
     
     /**
     * Default consturctor, instalizes XenForo classes and models.
@@ -682,8 +705,6 @@ class XenAPI {
         $this->models->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
         $this->models->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
         $this->models->setModel('database', XenForo_Application::get('db'));
-        $this->rest = new RestAPI($this);
-        $this->visitor = new Visitor();
     }
     
     /**
@@ -691,34 +712,6 @@ class XenAPI {
     */
     public function getDatabase() {
         return $this->models->getModel('database');
-    }
-    
-    /**
-    * Returns the RestAPI class.
-    */
-    public function getRest() {
-        return $this->rest;
-    }
-    
-    /**
-    * Returns the Visitor class.
-    */
-    public function getVisitor() {
-        return $this->visitor;
-    }
-    
-    /**
-    * Returns the API key, returns false if an API key was not set.
-    */
-    public function getAPIKey() {
-        return $this->apikey;
-    }
-    
-    /**
-    * Sets the API key.
-    */
-    public function setAPIKey($apikey) {
-        $this->apikey = $apikey;
     }
     
     /**
@@ -997,46 +990,38 @@ class User {
 * This class contains all the relevant information about the visitor that performed the request.
 */
 class Visitor {
-    private $ip, $useragent, $referer;
-
-    /**
-    * Default constructor, initializes the data of the visitor (IP, user agent, referer).
-    */
-    public function __construct() {
-        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
-            $this->ip = $_SERVER['HTTP_CLIENT_IP'];
-        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $this->ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-        } else if(isset($_SERVER['REMOTE_ADDR'])) {
-            $this->ip = $_SERVER['REMOTE_ADDR'];
-        }
-        if (isset($_SERVER['HTTP_USER_AGENT'])) { 
-            $this->useragent = $_SERVER['HTTP_USER_AGENT']; 
-        }
-        if (isset($_SERVER['HTTP_REFERER'])) { 
-            $this->referer = $_SERVER['HTTP_REFERER']; 
-        }
-    }
-
     /*
     * Returns the IP of the visitor.
     */
-    public function getIP() {
-        return $this->ip;
+    public static function getIP() {
+        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+            return $_SERVER['HTTP_CLIENT_IP'];
+        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            return $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else if(isset($_SERVER['REMOTE_ADDR'])) {
+            return $_SERVER['REMOTE_ADDR'];
+        }
+        return NULL;
     }
 
     /*
     * Returns the User Agent of the visitor.
     */
-    public function getUserAgent() {
-        return $this->useragent;
+    public static function getUserAgent() {
+        if (isset($_SERVER['HTTP_USER_AGENT'])) { 
+            return $_SERVER['HTTP_USER_AGENT']; 
+        }
+        return NULL;
     }
 
     /*
     * Returns the referer of the visitor.
     */
-    public function getReferer() {
-        return $this->referer;
+    public static function getReferer() {
+        if (isset($_SERVER['HTTP_REFERER'])) { 
+            return $_SERVER['HTTP_REFERER']; 
+        }
+        return NULL;
     }
 }
 ?>
