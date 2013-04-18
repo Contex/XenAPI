@@ -1,6 +1,6 @@
 <?php
 /*
- * This file is part of XenAPI <http://www.contex.me/>.
+ * This file is part of XenAPI <http://www.xenapi.net/>.
  *
  * XenAPI is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
@@ -17,24 +17,24 @@
  */
 $time_start = microtime(true);
 $xf = new XenAPI(); 
-$xf->setAPIKey("b8e7ae12510bdfb110bd");
+$xf->setAPIKey('b8e7ae12510bdfb110bd');
 
 if ($xf->getRest()->hasRequest('action')) {
     if (!$xf->getRest()->getAction()) {
         // Action argument is empty or not set, throw error. 
-        $xf->getRest()->throwErrorF(1, "action");
+        $xf->getRest()->throwErrorF(1, 'action');
     } else if (!$xf->getRest()->isSupportedAction()) {
         // Action is not supported, throw error.
         $xf->getRest()->throwErrorF(2, $xf->getRest()->getAction());
-    } else if (!$xf->getRest()->hasRequest("hash") && !$xf->getRest()->isPublicAction()) {
+    } else if (!$xf->getRest()->hasRequest('hash') && !$xf->getRest()->isPublicAction()) {
         // Action is not public and requires a hash but the hash argument is not set, throw error.
-        $xf->getRest()->throwErrorF(1, "hash");
+        $xf->getRest()->throwErrorF(1, 'hash');
     } else if (!$xf->getRest()->isAuthenticated() && !$xf->getRest()->isPublicAction()) {
         // Hash is not valid and action is not public, throw error.
         $xf->getRest()->throwErrorF(6, $xf->getRest()->getHash());
     } else if (!$xf->getRest()->isPermitted()) {
         // User does not have permission to use this action, throw error.
-        if ($xf->getRest()->hasRequest("value") && $xf->getRest()->isUserAction()) {
+        if ($xf->getRest()->hasRequest('value') && $xf->getRest()->isUserAction()) {
             $xf->getRest()->throwErrorF(9, $xf->getRest()->getAction());
         } else {
             $xf->getRest()->throwErrorF(10, $xf->getRest()->getAction());
@@ -44,57 +44,57 @@ if ($xf->getRest()->hasRequest('action')) {
     $xf->getRest()->processRequest();
 } else {
     // Action argument was not found, throw error.
-    $xf->getRest()->throwErrorF(3, "action");
+    $xf->getRest()->throwErrorF(3, 'action');
 }
 
 class RestAPI {
     /**
-    * Contains all the actions in an array, each action is "action" => "permission_name"
-    * "action" is the name of the action in lowercase.
-    * "permission_name" is the permission requirement of the action, see description under.
+    * Contains all the actions in an array, each action is 'action' => 'permission_name'
+    * 'action' is the name of the action in lowercase.
+    * 'permission_name' is the permission requirement of the action, see description under.
     *
     * Permission names and meaning:
     *   - public:        A hash is not required to use this action, it can be used without
-    *                    without being "authenticated".
+    *                    without being 'authenticated'.
     *   - authenticated: The action requires the user to be authenticated to use the action
-    *                    with a "value" argument.
+    *                    with a 'value' argument.
     *   - moderator:     The action requires the user to be a moderator to use the action 
-    *                    with a "value" argument.
+    *                    with a 'value' argument.
     *   - administrator: The action requires the user to be an administrator to use the action
-    *                    with a "value" argument.
+    *                    with a 'value' argument.
     *   - private:       User is only allowed to use the action on himself/herself. 
-    *                    Example: If user tries to use "getAlerts" with a "value" argument, 
+    *                    Example: If user tries to use 'getAlerts' with a 'value' argument, 
     *                              an error will be thrown.
     *
     * NOTE: Permissions are ignored when the API key is used as a hash, permissions are only
-    *       used when the user is using the "username:hash" format for the "hash" argument.
+    *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-                             "getactions"         => "public", 
-                             "getalerts"          => "private", 
-                             "getuser"            => "authenticated", 
-                             "getavatar"          => "public", 
-                             "getusers"           => "public", 
-                             "getgroup"           => "public", 
-                             "authenticate"       => "public");
+                             'getactions'         => 'public', 
+                             'getalerts'          => 'private', 
+                             'getuser'            => 'authenticated', 
+                             'getavatar'          => 'public', 
+                             'getusers'           => 'public', 
+                             'getgroup'           => 'public', 
+                             'authenticate'       => 'public');
     
-    // Array of actions that are user specific and require an username, ID or email for the "value" parameter.
-    private $user_actions = array("getalerts", "getuser", "getavatar");
+    // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
+    private $user_actions = array('getalerts', 'getuser', 'getavatar');
     
-    // List of errors, this is where the "throwErrorF" function gets the messages from.
+    // List of errors, this is where the 'throwErrorF' function gets the messages from.
     private $errors = array(
-                            0  => "Unknown error", 
-                            1  => "Argument: '{ERROR}', is empty/missing a value",
-                            2  => "'{ERROR}', is not a supported action",
-                            3  => "Missing argument: '{ERROR}'",
-                            4  => "No user found with the argument: '{ERROR}'",
-                            5  => "Authentication error: '{ERROR}'",
-                            6  => "'{ERROR}' is not a valid hash",
-                            7  => "No group found with the argument: '{ERROR}'",
-                            8  => "You do not have permissions to use the '{ERROR}' action",
-                            9  => "You are not permitted to use the '{ERROR}' action on others (remove the value argument)",
-                            10 => "You do not have permission to use the '{ERROR}' action",
-                            11 => "'{ERROR}' is a supported action but there is no code for it yet");
+                            0  => 'Unknown error', 
+                            1  => 'Argument: "{ERROR}", is empty/missing a value',
+                            2  => '"{ERROR}", is not a supported action',
+                            3  => 'Missing argument: "{ERROR}"',
+                            4  => 'No user found with the argument: "{ERROR}"',
+                            5  => 'Authentication error: "{ERROR}"',
+                            6  => '"{ERROR}" is not a valid hash',
+                            7  => 'No group found with the argument: "{ERROR}"',
+                            8  => 'You do not have permissions to use the "{ERROR}" action',
+                            9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
+                            10 => 'You do not have permission to use the "{ERROR}" action',
+                            11 => '"{ERROR}" is a supported action but there is no code for it yet');
 
     private $xenAPI, $method, $data = array(), $hash = false;
 
@@ -119,9 +119,9 @@ class RestAPI {
         } 
         // Lowercase the key data, ignores the case of the arguments.
         $this->data = array_change_key_case($this->data);
-        if ($this->hasRequest("hash")) {
+        if ($this->hasRequest('hash')) {
             // Sets the hash variable if the hash argument is set.
-            $this->hash = $this->getRequest("hash");
+            $this->hash = $this->getRequest('hash');
         }
     }
     
@@ -145,9 +145,9 @@ class RestAPI {
                 // The hash equals the API key, return true.
                 return true;
             }
-            if (strpos($this->getHash(), ":") !== false) {
+            if (strpos($this->getHash(), ':') !== false) {
                 // The hash contains : (username:hash), split it into an array.
-                $array = explode(":", $this->getHash());
+                $array = explode(':', $this->getHash());
                 // Get the user and check if the user is valid (registered).
                 $user = $this->xenAPI->getUser($array[0]);
                 if ($user->isRegistered()) {
@@ -155,7 +155,7 @@ class RestAPI {
                     $record = $user->getAuthenticationRecord();
                     $ddata = unserialize($record['data']);
                     if ($ddata['hash'] == $array[1]) {
-                        // The hash in the authentication record equals the hash in the "hash" argument.
+                        // The hash in the authentication record equals the hash in the 'hash' argument.
                         return true;
                     }
                 }
@@ -173,20 +173,20 @@ class RestAPI {
         // Check if the request is authenticated and it's an user hash (and not an API key).
         if ($this->isAuthenticated() && $this->getUser()) {
             switch ($permission) {
-                case "public":
+                case 'public':
                     return true;
-                case "authenticated":
+                case 'authenticated':
                     return true;
-                case "moderator":
+                case 'moderator':
                     return $this->getUser()->isModerator();
-                case "administrator":
+                case 'administrator':
                     return $this->getUser()->isAdmin();
-                case "private":
-                    // Check if the "value" argument is set.
+                case 'private':
+                    // Check if the 'value' argument is set.
                     if ($this->hasRequest('value') && $this->getRequest('value')) {
                         /**
-                        * Returns true if the "value" argument equals the username of the user hash.
-                        * In other words, the request is not permitted if "value" != username.
+                        * Returns true if the 'value' argument equals the username of the user hash.
+                        * In other words, the request is not permitted if 'value' != username.
                         */
                         return $this->getUser()->getUsername() == $this->getRequest('value');
                     }
@@ -195,7 +195,7 @@ class RestAPI {
             }
         }
         // Returns true if permission of the action is public or the request has a valid API key.
-        return $permission == "public" || $this->hasAPIKey();
+        return $permission == 'public' || $this->hasAPIKey();
     }
     
     /**
@@ -213,8 +213,8 @@ class RestAPI {
     * Returns false if the hash is not an userhash.
     */
     public function getUser() {
-        if (strpos($this->getHash(), ":") !== false) {
-            $array = explode(":", $this->getHash());
+        if (strpos($this->getHash(), ':') !== false) {
+            $array = explode(':', $this->getHash());
             return $this->xenAPI->getUser($array[0]);
         }    
         return false;
@@ -242,14 +242,14 @@ class RestAPI {
     }
     
     /**
-    * Returns true if the "$key" is set a argument, returns false if not.
+    * Returns true if the '$key' is set a argument, returns false if not.
     */
     public function hasRequest($key) {
         return isset($this->data[strtolower($key)]);
     }
     
     /**
-    * Gets the data of the "$key", returns false if the "$key" argument was not set.
+    * Gets the data of the '$key', returns false if the '$key' argument was not set.
     */
     public function getRequest($key) {
         if ($this->hasRequest($key)) {
@@ -277,11 +277,11 @@ class RestAPI {
     * Returns true if the action is a public action (does not require a hash), false if not.
     */
     public function isPublicAction() {
-        return strtolower($this->actions[strtolower($this->data['action'])]) == "public";
+        return strtolower($this->actions[strtolower($this->data['action'])]) == 'public';
     }
     
     /**
-    * Returns true if the action is a user action (the "value" parameter has to be an username/id/email), false if not.
+    * Returns true if the action is a user action (the 'value' parameter has to be an username/id/email), false if not.
     */
     public function isUserAction() {
         return in_array(strtolower($this->data['action']), $this->user_actions);
@@ -300,7 +300,7 @@ class RestAPI {
     public function getErrorF($error, $extra) {
         if (array_key_exists($error, $this->errors)) {
             if ($extra != null) {
-                return str_replace("{ERROR}", $extra, $this->errors[$error]);
+                return str_replace('{ERROR}', $extra, $this->errors[$error]);
             } else {
                 return $this->errors[$error];
             }
@@ -321,9 +321,9 @@ class RestAPI {
     */
     public function throwErrorF($error, $extra) {
         if ($extra != null) {
-            $this->sendResponse(array("error" => $error, "message" => $this->getErrorF($error, $extra)));
+            $this->sendResponse(array('error' => $error, 'message' => $this->getErrorF($error, $extra)));
         } else {
-            $this->sendResponse(array("error" => $error, "message" => $this->getError($error)));
+            $this->sendResponse(array('error' => $error, 'message' => $this->getError($error)));
         }
     }
     
@@ -335,22 +335,22 @@ class RestAPI {
         if ($this->isUserAction()) {
             if ($this->hasRequest('value')) {
                 if (!$this->getRequest('value')) {
-                    // Throw error if the "value" arguement is set but empty.
-                    $this->throwErrorF(1, "value");
+                    // Throw error if the 'value' arguement is set but empty.
+                    $this->throwErrorF(1, 'value');
                     break;
                 }
-                // Create a user variable with the "value" arguement.
+                // Create a user variable with the 'value' arguement.
                 $user = $this->xenAPI->getUser($this->getRequest('value'));
                 if (!$user->isRegistered()) {
-                    // Throw error if the "value" user is not registered.
+                    // Throw error if the 'value' user is not registered.
                     $this->throwErrorF(4, $this->getRequest('value'));
                     break;
                 }
             } else if ($this->hasRequest('hash')) {
-                // The "value" arguement was not set, check if hash is an API key.
+                // The 'value' arguement was not set, check if hash is an API key.
                 if ($this->hasAPIKey()) {
                     /**
-                    * The "hash" arguement is an API key, and the "value" arguement
+                    * The 'hash' arguement is an API key, and the 'value' arguement
                     * is required but not set, throw error.
                     */
                     $this->throwErrorF(3, 'value');
@@ -358,23 +358,23 @@ class RestAPI {
                 // Get the user from the hash.
                 $user = $this->getUser();
             } else {
-                // Nor the "value" arguement or the "hash" arguement has been set, throw error.
-                $this->throwErrorF(3, "value");
+                // Nor the 'value' arguement or the 'hash' arguement has been set, throw error.
+                $this->throwErrorF(3, 'value');
                 break;
             }
         }
     
         switch (strtolower($this->getAction())) {
-            case "getalerts":
+            case 'getalerts':
                 /**
                 * Grabs the alerts from the specified user, if type is not specified, 
                 * default (recent alerts) is used instead.
                 * 
-                * NOTE: The "value" arguement will only work for the user itself and
+                * NOTE: The 'value' arguement will only work for the user itself and
                 *       not on others users unless the permission arguement for the 
-                *       "getalerts" action is changed (default permission: private).
+                *       'getalerts' action is changed (default permission: private).
                 *
-                * Options for the "type" arguement are:
+                * Options for the 'type' arguement are:
                 *     - fetchPopupItems: Fetch alerts viewed in the last options:alertsPopupExpiryHours hours.
                 *   - fetchRecent:     Fetch alerts viewed in the last options:alertExpiryDays days.
                 *   - fetchAll:        Fetch alerts regardless of their view_date.
@@ -390,16 +390,16 @@ class RestAPI {
                 *   - api.php?action=getAlerts&value=USERNAME&type=fetchAll&hash=API_KEY
                 */
                 /* 
-                * Check if the request has the "type" arguement set, 
+                * Check if the request has the 'type' arguement set, 
                 * if it doesn't it uses the default (fetchRecent).
                 */
                 if ($this->hasRequest('type')) {
                     if (!$this->getRequest('type')) {
-                        // Throw error if the "type" arguement is set but empty.
-                        $this->throwErrorF(1, "type");
+                        // Throw error if the 'type' arguement is set but empty.
+                        $this->throwErrorF(1, 'type');
                         break;
                     }
-                    // Use the value from the "type" arguement to get the alerts.
+                    // Use the value from the 'type' arguement to get the alerts.
                     $data = $user->getAlerts($this->getRequest('type'));
                 } else {
                     // Use the default type to get the alerts.
@@ -408,7 +408,7 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($data);
                 break;
-            case "getuser": 
+            case 'getuser': 
                 /**
                 * Grabs and returns an user object.
                 * 
@@ -454,7 +454,7 @@ class RestAPI {
                         }
                     } 
                     if ($this->getUser()->getID() != $user->getID()) {
-                        // Unset variables if user does not equal the requested user by the "value" arguement.
+                        // Unset variables if user does not equal the requested user by the 'value' arguement.
                         if (isset($data['language_id'])) {
                             unset($data['language_id']);
                         }
@@ -472,16 +472,16 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($data);
                 break;
-            case "getavatar": 
+            case 'getavatar': 
                 /**
                 * Returns the avatar of the requested user.
                 *
-                * Options for the "size" arguement are:
+                * Options for the 'size' arguement are:
                 *   - s (Small)
                 *   - m (Medium)
                 *   - l (Large)
                 *
-                * NOTE: The default avatar size is "Medium".
+                * NOTE: The default avatar size is 'Medium'.
                 * 
                 * EXAMPLES: 
                 *   - api.php?action=getAvatar&hash=USERNAME:HASH
@@ -493,27 +493,27 @@ class RestAPI {
                 */
                 if ($this->hasRequest('size')) {
                     if (!$this->getRequest('size')) {
-                        // Throw error if the "size" arguement is set but empty.
-                        $this->throwErrorF(1, "size");
+                        // Throw error if the 'size' arguement is set but empty.
+                        $this->throwErrorF(1, 'size');
                         break;
                     }
-                    // Use the value from the "size" arguement.
+                    // Use the value from the 'size' arguement.
                     $size = strtolower($this->getRequest('size'));
-                    if (!in_array($size, array("s", "m", "l"))) {
+                    if (!in_array($size, array('s', 'm', 'l'))) {
                         /**
-                        * The value from the "size" arguement was not valid,
+                        * The value from the 'size' arguement was not valid,
                         * use default size (medium) instead.
                         */
-                        $size = "m";
+                        $size = 'm';
                     }
                 } else {
                     // No specific size was requested, use default size (medium):
-                    $size = "m";
+                    $size = 'm';
                 }
                 // Send the response.
-                $this->sendResponse(array("avatar" => $user->getAvatar($size)));
+                $this->sendResponse(array('avatar' => $user->getAvatar($size)));
                 break;
-            case "getactions":
+            case 'getactions':
                 /**
                 * Returns the actions and their permission levels.
                 *
@@ -531,7 +531,7 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($this->actions);
                 break;
-            case "getusers": 
+            case 'getusers': 
                 /**
                 * Searches through the usernames depending on the input.
                 *
@@ -543,17 +543,17 @@ class RestAPI {
                 *   - api.php?action=getUsers&value=C*
                 */
                 if (!$this->hasRequest('value')) {
-                    // The "value" arguement has not been set, throw error.
-                    $this->throwErrorF(3, "value");
+                    // The 'value' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'value');
                     break;
                 } else if (!$this->getRequest('value')) {
-                    // Throw error if the "value" arguement is set but empty.
-                    $this->throwErrorF(1, "value");
+                    // Throw error if the 'value' arguement is set but empty.
+                    $this->throwErrorF(1, 'value');
                     break;
                 }
                 
-                // Replace the wildcard with "%" for the SQL query.
-                $string = str_replace("*", "%", $this->getRequest('value'));
+                // Replace the wildcard with '%' for the SQL query.
+                $string = str_replace('*', '%', $this->getRequest('value'));
                 
                 // Perform the SQL query and grab all the usernames.
                 $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `username` FROM `xf_user` WHERE `username` LIKE '$string'");
@@ -561,33 +561,33 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($results);
                 break;
-            case "getgroup": 
+            case 'getgroup': 
                 /**
-                * Returns the group information depending on the "value" arguement.
+                * Returns the group information depending on the 'value' arguement.
                 *
-                * NOTE: Only group titles, user titles and group ID's can be used for the "value" parameter.
+                * NOTE: Only group titles, user titles and group ID's can be used for the 'value' parameter.
                 *
                 * EXAMPLE:
                 *   - api.php?action=getGroup&value=1
                 *   - api.php?action=getGroup&value=Guest
                 */
                 if (!$this->hasRequest('value')) {
-                    // The "value" arguement has not been set, throw error.
-                    $this->throwErrorF(3, "value");
+                    // The 'value' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'value');
                     break;
                 } else if (!$this->getRequest('value')) {
-                    // Throw error if the "value" arguement is set but empty.
-                    $this->throwErrorF(1, "value");
+                    // Throw error if the 'value' arguement is set but empty.
+                    $this->throwErrorF(1, 'value');
                     break;
                 }
                 $string = $this->getRequest('value');
                 
-                // Check if the "value" arguement is a number (ID).
+                // Check if the 'value' arguement is a number (ID).
                 if (is_numeric($string)) {
-                    // The "value" arguement was a number, search by the group ID.
+                    // The 'value' arguement was a number, search by the group ID.
                     $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = $string");
                 } else {
-                    // The "value" arguement was not a number, search by the group title and user title instead.
+                    // The 'value' arguement was not a number, search by the group title and user title instead.
                     $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `title` = '$string' OR `user_title` = '$string'");
                 }
                 if (!$group) {
@@ -598,7 +598,7 @@ class RestAPI {
                     $this->sendResponse($group);
                 }
                 break;
-            case "authenticate": 
+            case 'authenticate': 
                 /**
                 * Authenticates the user and returns the hash that the user has to use for future requests.
                 *
@@ -606,20 +606,20 @@ class RestAPI {
                 *   - api.php?action=authenticate&username=USERNAME&password=PASSWORD
                 */
                 if (!$this->hasRequest('username')) {
-                    // The "username" arguement has not been set, throw error.
-                    $this->throwErrorF(3, "username");
+                    // The 'username' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'username');
                     break;
                 } else if (!$this->getRequest('username')) {
-                    // Throw error if the "username" arguement is set but empty.
-                    $this->throwErrorF(1, "username");
+                    // Throw error if the 'username' arguement is set but empty.
+                    $this->throwErrorF(1, 'username');
                     break;
                 } else if (!$this->hasRequest('password')) {
-                    // The "password" arguement has not been set, throw error.
-                    $this->throwErrorF(3, "password");
+                    // The 'password' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'password');
                     break;
                 } else if (!$this->getRequest('password')) {
-                    // Throw error if the "password" arguement is set but empty.
-                    $this->throwErrorF(1, "password");
+                    // Throw error if the 'password' arguement is set but empty.
+                    $this->throwErrorF(1, 'password');
                     break;
                 }
                 // Get the user object.
@@ -681,7 +681,7 @@ class XenAPI {
         $this->models->setAlertModel(XenForo_Model::create('XenForo_Model_Alert'));
         $this->models->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
         $this->models->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
-        $this->models->setModel("database", XenForo_Application::get('db'));
+        $this->models->setModel('database', XenForo_Application::get('db'));
         $this->rest = new RestAPI($this);
         $this->visitor = new Visitor();
     }
@@ -690,7 +690,7 @@ class XenAPI {
     * Returns the Database model.
     */
     public function getDatabase() {
-        return $this->models->getModel("database");
+        return $this->models->getModel('database');
     }
     
     /**
@@ -856,7 +856,7 @@ class Models {
     * Returns the database model.
     */
     public function getDatabase() {
-        return $this->getModel("database");
+        return $this->getModel('database');
     }
 }    
 
@@ -887,7 +887,7 @@ class User {
     /**
     * Returns all the alerts and relevant information regarding the alerts.
     */
-    public function getAlerts($type = "fetchRecent") {
+    public function getAlerts($type = 'fetchRecent') {
         /* 
         * Options are:
         *   - fetchPopupItems: Fetch alerts viewed in the last options:alertsPopupExpiryHours hours.
@@ -896,9 +896,9 @@ class User {
         *
         * For more information, see /library/XenForo/Model/Alert.php.
         */
-        $types = array("fetchPopupItems", "fetchRecent", "fetchAll");
+        $types = array('fetchPopupItems', 'fetchRecent', 'fetchAll');
         if (!in_array($type, $types)) {
-            $type = "fetchRecent";
+            $type = 'fetchRecent';
         }
         return $this->models->getAlertModel()->getAlertsForUser($this->getID(), $type);
     }
@@ -931,9 +931,9 @@ class User {
         if ($this->data['gravatar']) {
             return XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size);
         } else if (!empty($this->data['avatar_date'])) {
-            return "http://" . $_SERVER['HTTP_HOST'] . "/" . XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size, 'custom');
+            return 'http://' . $_SERVER['HTTP_HOST'] . '/' . XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size, 'custom');
         } else {
-            return "http://" . $_SERVER['HTTP_HOST'] . "/" . XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size, 'default');
+            return 'http://' . $_SERVER['HTTP_HOST'] . '/' . XenForo_Template_Helper_Core::getAvatarUrl($this->data, $size, 'default');
         }
     }
     
