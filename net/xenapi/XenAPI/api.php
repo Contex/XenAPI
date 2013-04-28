@@ -17,15 +17,15 @@
  */
 $time_start = microtime(TRUE);
 $restAPI = new RestAPI(); 
-$restAPI->setAPIKey('API_KEY');
+// $restAPI->setAPIKey('API_KEY');
 
 if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') { 
     // API is set but not changed from the default API key.
     $restAPI->throwError(17);
-} else if ($restAPI->getAPIKey() != NULL && !$restAPI->hasRequest('hash')) {
+} else if ($restAPI->getAPIKey() != NULL && !$restAPI->hasRequest('hash') && !$restAPI->isPublicAction()) {
     // Hash argument is required and was not found, throw error.
     $restAPI->throwErrorF(3, 'hash');
-} else if (!$restAPI->getHash()) {
+} else if (!$restAPI->getHash() && !$restAPI->isPublicAction()) {
     // Hash argument is empty or not set, throw error. 
     $restAPI->throwErrorF(1, 'hash');
 } else if (!$restAPI->isAuthenticated() && !$restAPI->isPublicAction()) {
@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const version = '1.2';
+    const version = '1.2.1';
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -109,7 +109,8 @@ class RestAPI {
                             14 => '"{ERROR}" is not an author of any resources.',
                             15 => 'Could not find a resource with ID "{ERROR}".',
                             16 => 'Could not find a required model to perform this request: "{ERROR}".',
-                            17 => 'The API key has not been changed, make sure you use another API key before using this API.');
+                            17 => 'The API key has not been changed, make sure you use another API key before using this API.',
+                            18 => '"{ERROR} is a unknown permission name, the request was terminated.');
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -233,6 +234,9 @@ class RestAPI {
                     }
                     // The value argument is not, request is permitted, return TRUE.
                     return TRUE;
+                default:
+                    $this->throwErrorF(17, $permission);
+                    return FALSE;
             }
         }
         // Returns TRUE if permission of the action is public or the request has a valid API key.
@@ -279,7 +283,9 @@ class RestAPI {
     * Returns the permission name of the action.
     */
     public function getActionPermission() {
-        return isset($this->data['action']) && strtolower($this->actions[strtolower($this->getAction())]);
+        return (isset($this->data['action']) && isset($this->actions[strtolower($this->getAction())])) 
+                ? strtolower($this->actions[strtolower($this->getAction())]) 
+                : NULL;
     }
     
     /**
@@ -849,10 +855,10 @@ class RestAPI {
     */
     public function sendResponse($data) {
         if ($this->hasRequest('performance')) {
-    		global $time_start;
-			$time_end = microtime(TRUE);
-			$data['execution_time'] = $time_end - $time_start;
-		}
+            global $time_start;
+            $time_end = microtime(TRUE);
+            $data['execution_time'] = $time_end - $time_start;
+        }
         header('Content-type: application/json');
         die(json_encode($data));
     }
