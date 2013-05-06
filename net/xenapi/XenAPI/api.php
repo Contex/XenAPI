@@ -850,10 +850,17 @@ class RestAPI {
                 break;
             case 'getthread':
                 /**
-                * Returns the actions and their permission levels.
+                * Returns the thread information depending on the 'value' arguement.
+                *
+                * NOTE: Only thread ID's can be used for the 'value' parameter.
+                *       Thread ID's can be found by using the 'getThreads' action.
+                *
+                *       The user needs permission to see the thread if the request is
+                *       using a user hash and not an API key.
                 *
                 * EXAMPLE:
-                *   - api.php?action=getActions
+                *   - api.php?action=getThread&value=820&hash=USERNAME:HASH
+                *   - api.php?action=getThread&value=820&hash=API_KEY
                 */
                 if (!$this->hasRequest('value')) {
                     // The 'value' arguement has not been set, throw error.
