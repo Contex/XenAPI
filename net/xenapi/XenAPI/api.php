@@ -17,7 +17,7 @@
  */
 $time_start = microtime(TRUE);
 $restAPI = new RestAPI(); 
-// $restAPI->setAPIKey('API_KEY');
+$restAPI->setAPIKey('API_KEY');
 
 if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') { 
     // API is set but not changed from the default API key.
@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const version = '1.2.1';
+    const version = '1.3';
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -75,17 +75,19 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-                             'getactions'   => 'public', 
-                             'getalerts'    => 'private', 
-                             'getuser'      => 'authenticated', 
-                             'getavatar'    => 'public', 
-                             'getusers'     => 'public', 
-                             'getgroup'     => 'public', 
                              'authenticate' => 'public',
-                             'getaddons'    => 'administrator',
+                             'getactions'   => 'public', 
                              'getaddon'     => 'administrator',
+                             'getaddons'    => 'administrator',
+                             'getalerts'    => 'private', 
+                             'getavatar'    => 'public', 
+                             'getgroup'     => 'public', 
+                             'getresource'  => 'administrator',
                              'getresources' => 'administrator',
-                             'getresource'  => 'administrator');
+                             'getthread'    => 'public',
+                             'getthreads'   => 'public',
+                             'getuser'      => 'authenticated', 
+                             'getusers'     => 'public');
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
     private $user_actions = array('getalerts', 'getuser', 'getavatar');
@@ -110,7 +112,9 @@ class RestAPI {
                             15 => 'Could not find a resource with ID "{ERROR}".',
                             16 => 'Could not find a required model to perform this request: "{ERROR}".',
                             17 => 'The API key has not been changed, make sure you use another API key before using this API.',
-                            18 => '"{ERROR} is a unknown permission name, the request was terminated.');
+                            18 => '"{ERROR} is a unknown permission name, the request was terminated.',
+                            19 => 'Could not find a thread with ID "{ERROR}".',
+                            20 => 'You do not have permissions to view this thread.');
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -324,7 +328,7 @@ class RestAPI {
     * Returns TRUE if the action is a public action (does not require a hash), FALSE if not.
     */
     public function isPublicAction() {
-        return isset($this->data['action']) && strtolower($this->actions[strtolower($this->data['action'])]) == 'public';
+        return isset($this->data['action']) && isset($this->actions[strtolower($this->data['action'])]) && strtolower($this->actions[strtolower($this->data['action'])]) == 'public';
     }
     
     /**
@@ -412,6 +416,49 @@ class RestAPI {
         }
     
         switch (strtolower($this->getAction())) {
+            case 'authenticate': 
+                /**
+                * Authenticates the user and returns the hash that the user has to use for future requests.
+                *
+                * EXAMPLE:
+                *   - api.php?action=authenticate&username=USERNAME&password=PASSWORD
+                */
+                if (!$this->hasRequest('username')) {
+                    // The 'username' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'username');
+                    break;
+                } else if (!$this->getRequest('username')) {
+                    // Throw error if the 'username' arguement is set but empty.
+                    $this->throwErrorF(1, 'username');
+                    break;
+                } else if (!$this->hasRequest('password')) {
+                    // The 'password' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'password');
+                    break;
+                } else if (!$this->getRequest('password')) {
+                    // Throw error if the 'password' arguement is set but empty.
+                    $this->throwErrorF(1, 'password');
+                    break;
+                }
+                // Get the user object.
+                $user = $this->xenAPI->getUser($this->getRequest('username'));
+                if (!$user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwErrorF(4, $this->getRequest('username'));
+                } else {
+                    // Requested user was registered, check authentication.
+                    if ($user->validateAuthentication($this->getRequest('password'))) {
+                        // Authentication was valid, grab the user's authentication record.
+                        $record = $user->getAuthenticationRecord();
+                        $ddata = unserialize($record['data']);
+                        // Send the hash in responsel.
+                        $this->sendResponse(array('hash' => $ddata['hash']));
+                    } else {
+                        // The username or password was wrong, throw error.
+                        $this->throwErrorF(5, 'Invalid username or password!');
+                    }
+                }
+                break;
             case 'getalerts':
                 /**
                 * Grabs the alerts from the specified user, if type is not specified, 
@@ -645,49 +692,6 @@ class RestAPI {
                     $this->sendResponse($group);
                 }
                 break;
-            case 'authenticate': 
-                /**
-                * Authenticates the user and returns the hash that the user has to use for future requests.
-                *
-                * EXAMPLE:
-                *   - api.php?action=authenticate&username=USERNAME&password=PASSWORD
-                */
-                if (!$this->hasRequest('username')) {
-                    // The 'username' arguement has not been set, throw error.
-                    $this->throwErrorF(3, 'username');
-                    break;
-                } else if (!$this->getRequest('username')) {
-                    // Throw error if the 'username' arguement is set but empty.
-                    $this->throwErrorF(1, 'username');
-                    break;
-                } else if (!$this->hasRequest('password')) {
-                    // The 'password' arguement has not been set, throw error.
-                    $this->throwErrorF(3, 'password');
-                    break;
-                } else if (!$this->getRequest('password')) {
-                    // Throw error if the 'password' arguement is set but empty.
-                    $this->throwErrorF(1, 'password');
-                    break;
-                }
-                // Get the user object.
-                $user = $this->xenAPI->getUser($this->getRequest('username'));
-                if (!$user->isRegistered()) {
-                    // Requested user was not registered, throw error.
-                    $this->throwErrorF(4, $this->getRequest('username'));
-                } else {
-                    // Requested user was registered, check authentication.
-                    if ($user->validateAuthentication($this->getRequest('password'))) {
-                        // Authentication was valid, grab the user's authentication record.
-                        $record = $user->getAuthenticationRecord();
-                        $ddata = unserialize($record['data']);
-                        // Send the hash in responsel.
-                        $this->sendResponse(array('hash' => $ddata['hash']));
-                    } else {
-                        // The username or password was wrong, throw error.
-                        $this->throwErrorF(5, 'Invalid username or password!');
-                    }
-                }
-                break;
             case 'getaddons':
                 /**
                 * Returns a list of addons, if a type is not specified or not supported, 
@@ -844,6 +848,36 @@ class RestAPI {
                     $this->sendResponse(Resource::getLimitedData($resource));
                 }
                 break;
+            case 'getthread':
+                /**
+                * Returns the actions and their permission levels.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getActions
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' arguement has not been set, throw error.
+                    $this->throwErrorF(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' arguement is set but empty.
+                    $this->throwErrorF(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the thread from XenForo.
+                $thread = $this->getXenAPI()->getThread($string);
+                if ($thread == NULL) {
+                     // Could not find the thread, throw error.
+                    $this->throwErrorF(19, $string);
+                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
+                    // Thread was found but the user is not permitted to view the thread.
+                    $this->throwError(20);
+                } else {
+                     // Thread was found, and the request was permitted.
+                    $this->sendResponse($thread);
+                }
+                break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwErrorF(11, $this->getAction());
@@ -855,10 +889,10 @@ class RestAPI {
     */
     public function sendResponse($data) {
         if ($this->hasRequest('performance')) {
-            global $time_start;
-            $time_end = microtime(TRUE);
-            $data['execution_time'] = $time_end - $time_start;
-        }
+    		global $time_start;
+			$time_end = microtime(TRUE);
+			$data['execution_time'] = $time_end - $time_start;
+		}
         header('Content-type: application/json');
         die(json_encode($data));
     }
@@ -881,6 +915,7 @@ class XenAPI {
         XenForo_Application::initialize($this->xfDir . '/library', $this->xfDir);
         XenForo_Application::set('page_start_time', microtime(TRUE));
         $this->models = new Models();
+        // TODO: Don't create models on init, only create them if they're being used (see Models::checkModel($model_name, $model)).
         $this->getModels()->setUserModel(XenForo_Model::create('XenForo_Model_User'));
         $this->getModels()->setAlertModel(XenForo_Model::create('XenForo_Model_Alert'));
         $this->getModels()->setUserFieldModel(XenForo_Model::create('XenForo_Model_UserField'));
@@ -975,6 +1010,35 @@ class XenAPI {
     public function getResource($resource) {
         return new Resource($this->getModels()->getModel('resource')->getResourceById($resource));
     }
+
+    /**
+    * Returns the Forum array of the $forum_id parameter.
+    */
+    public function getForum($forum_id) {
+        $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
+        return $this->getModels()->getModel('forum')->getForumByID($forum_id);
+    }
+
+    /**
+    * Returns the Thread array of the $thread_id parameter.
+    */
+    public function getThread($thread_id, $fetch_options = array()) {
+        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        return $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetch_options);
+    }
+
+    /**
+    * Returns the Thread array of the $thread_id parameter.
+    */
+    public function canViewThread($user, $thread) {
+        // Check if the thread model has initialized.
+        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        // Let's grab the permissions.
+        $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+        // Unserialize the permissions.
+        $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+        return ($this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData()));
+    }
     
     /**
     * Returns the User class of the $input parameter.
@@ -982,7 +1046,7 @@ class XenAPI {
     * The $input parameter can be an user ID, username or e-mail.
     * Returns FALSE if $input is NULL.
     */
-    public function getUser($input) {
+    public function getUser($input, $grab_permission = FALSE) {
         if ($input == FALSE || $input == NULL) {
             return FALSE;
         } else if (is_numeric($input)) {
@@ -998,7 +1062,7 @@ class XenAPI {
             return new User($this->models, $this->models->getUserModel()->getUserByEmail($input));
         } else {
             // $input is an username, return the user of the username.
-            return new User($this->models, $this->models->getUserModel()->getUserByName($input));
+            return new User($this->models, $this->models->getUserModel()->getUserByName($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
         }
     }
 }
@@ -1012,8 +1076,17 @@ class Models {
     /**
     * Returns TRUE if the model exists, FALSE if not.
     */
-    public function hasModel($model) {
-        return isset($this->models[$model]) && $this->models[$model] != NULL;
+    public function hasModel($model_name) {
+        return isset($this->models[$model_name]) && $this->models[$model_name] != NULL;
+    }
+
+    /**
+    * Checks if the model exists, adds it to the array if not.
+    */
+    public function checkModel($model_name, $model) {
+        if (!$this->hasModel($model_name)) {
+            $this->setModel($model_name, $model);
+        }
     }
 
     /**
@@ -1444,7 +1517,7 @@ class Addon {
     /**
     * Returns the uninstall callback method of the addon.
     */
-    public function getUninstasllCallbackMethod() {
+    public function getUninstallCallbackMethod() {
         return $this->data['uninstall_callback_class'];
     }
 }
@@ -1453,7 +1526,8 @@ class Addon {
 * This class contains all the functions and all the relevant data of a XenForo user.
 */
 class User {
-    private $models, $data, $registered = FALSE;
+    public $data;
+    private $models, $registered = FALSE;
     
     /**
     * Default constructor.
@@ -1580,6 +1654,14 @@ class User {
     public function getUnreadAlertsCount() {
         return $this->models->getUserModel()->getUnreadAlertsCount($this->getID()); 
     }
+
+    /**
+    * Returns the permission cache, if any.
+    */
+    public function getPermissionCache() {
+        return $this->data['global_permission_cache'];
+    }
+
 }
 
 /**
