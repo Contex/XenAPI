@@ -148,6 +148,33 @@ class RestAPI {
             // Sets the hash variable if the hash argument is set.
             $this->hash = $this->getRequest('hash');
         }
+        // Check if order by argument is set.
+        if ($this->hasRequest('order_by')) {
+            $this->order_by = $this->getRequest('order_by');
+        }
+        // Check if order argument is set.
+        if ($this->hasRequest('order')) {
+            $this->order = strtolower($this->getRequest('order'));
+            if ($this->order == 'd' || $this->order == 'desc' || $this->order == 'descending') {
+                // Order is descending (10-0).
+                $this->order = 'desc';
+            } else if ($this->order == 'a' || $this->order == 'asc' || $this->order == 'ascending') {
+                // Order is ascending (0-10).
+                $this->order = 'asc';
+            } else {
+                // Order is unknown, default to descending (10-0).
+                $this->order = 'desc';
+            }
+        } else {
+            // Order is not set, default to descending (10-0).
+            $this->order = 'desc';
+        }
+        // Check if limit argument is set.
+        if ($this->hasRequest('limit') && is_numeric($this->getRequest('limit'))) {
+            $this->limit = $this->getRequest('limit');
+        } else {
+            $this->limit = 0;
+        }
     }
 
     /**
@@ -650,7 +677,7 @@ class RestAPI {
                 $string = str_replace('*', '%', $this->getRequest('value'));
                 
                 // Perform the SQL query and grab all the usernames.
-                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `username` FROM `xf_user` WHERE `username` LIKE '$string'");
+                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username` FROM `xf_user` WHERE `username` LIKE '$string'");
                 
                 // Send the response.
                 $this->sendResponse($results);
@@ -885,6 +912,49 @@ class RestAPI {
                     $this->sendResponse($thread);
                 }
                 break;
+        case 'getthreads':
+                /**
+                * Returns a list of threads, either the last 10 threads, 
+                * or just the threads created by an author.
+                *
+                * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getResources&hash=USERNAME:HASH
+                *   - api.php?action=getResources&hash=API_KEY
+                *   - api.php?action=getResources&author=Contex&hash=USERNAME:HASH
+                *   - api.php?action=getResources&author=1&hash=API_KEY
+                */
+                /* 
+                * Check if the request has the 'author' arguement set, 
+                * if it doesn't it uses the default (all).
+                */
+                if ($this->hasRequest('author')) {
+                    if (!$this->getRequest('author')) {
+                        // Throw error if the 'author' arguement is set but empty.
+                        $this->throwErrorF(1, 'author');
+                        break;
+                    }
+                    // Use the value from the 'author' arguement to get the alerts.
+                    $resources_list = $this->xenAPI->getResources($this->getRequest('author'));
+                    if (count($resources_list) == 0) {
+                       // Throw error if the 'author' is not the author of any resources.
+                        $this->throwErrorF(14, $this->getRequest('author'));
+                        break;
+                    }
+                } else {
+                    // Use the default type to get the alerts.
+                    $resources_list = $this->getXenAPI()->getResources();
+                }
+
+                // Create an array for the resources.
+                $resources = array();
+                // Loop through all the resources and strip out any information that we don't need.
+                foreach ($resources_list as $resource) {
+                    $resources[] = Resource::getLimitedData($resource);
+                }
+                // Send the response.
+                $this->sendResponse(array('count' => count($resources), 'resources' => $resources));
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwErrorF(11, $this->getAction());
