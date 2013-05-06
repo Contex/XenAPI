@@ -102,7 +102,7 @@ class RestAPI {
                             5  => 'Authentication error: "{ERROR}"',
                             6  => '"{ERROR}" is not a valid hash',
                             7  => 'No group found with the argument: "{ERROR}"',
-                            8  => 'You do not have permissions to use the "{ERROR}" action',
+                            8  => 'PLACEHOLDER',
                             9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
                             10 => 'You do not have permission to use the "{ERROR}" action',
                             11 => '"{ERROR}" is a supported action but there is no code for it yet',
@@ -114,7 +114,7 @@ class RestAPI {
                             17 => 'The API key has not been changed, make sure you use another API key before using this API.',
                             18 => '"{ERROR} is a unknown permission name, the request was terminated.',
                             19 => 'Could not find a thread with ID "{ERROR}".',
-                            20 => 'You do not have permissions to view this thread.',
+                            20 => 'You do not have permissions to view {ERROR}.',
                             21 => 'The "{ERROR}" argument has to be a number.',
                             22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})".');
 
@@ -424,7 +424,7 @@ class RestAPI {
     /**
     * Throw the error message.
     */
-    public function throwError($error, $extra = NULL, $extra2) {
+    public function throwError($error, $extra = NULL, $extra2 = NULL) {
         $this->sendResponse(array('error' => $error, 'message' => $this->getError($error, $extra, $extra2)));
     }
     
@@ -697,7 +697,7 @@ class RestAPI {
                 } 
 
                 // Check if the order by argument is set.
-                $order_by_field = $this->checkOrderBy(array('message_count', 'conversations_unread', 'trophy_points', 'alerts_unread', 'like_count'));
+                $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'trophy_points', 'alerts_unread', 'like_count'));
                 
                 // Replace the wildcard with '%' for the SQL query.
                 $string = str_replace('*', '%', $this->getRequest('value'));
@@ -932,58 +932,12 @@ class RestAPI {
                     $this->throwError(19, $string);
                 } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
                     // Thread was found but the user is not permitted to view the thread.
-                    $this->throwError(20);
+                    $this->throwError(20, 'this thread');
                 } else {
                      // Thread was found, and the request was permitted.
                     $this->sendResponse($thread);
                 }
                 break;
-        case 'getthreads':
-                /**
-                * Returns a list of threads, either the last 10 threads, 
-                * or just the threads created by an author.
-                *
-                * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
-                *
-                * EXAMPLES: 
-                *   - api.php?action=getResources&hash=USERNAME:HASH
-                *   - api.php?action=getResources&hash=API_KEY
-                *   - api.php?action=getResources&author=Contex&hash=USERNAME:HASH
-                *   - api.php?action=getResources&author=1&hash=API_KEY
-                */
-                /* 
-                * Check if the request has the 'author' argument set, 
-                * if it doesn't it uses the default (all).
-                */
-                if ($this->hasRequest('author')) {
-                    if (!$this->getRequest('author')) {
-                        // Throw error if the 'author' argument is set but empty.
-                        $this->throwError(1, 'author');
-                        break;
-                    }
-                    // Use the value from the 'author' argument to get the alerts.
-                    $resources_list = $this->xenAPI->getResources($this->getRequest('author'));
-                    if (count($resources_list) == 0) {
-                       // Throw error if the 'author' is not the author of any resources.
-                        $this->throwError(14, $this->getRequest('author'));
-                        break;
-                    }
-                } else {
-                    // Use the default type to get the alerts.
-                    $resources_list = $this->getXenAPI()->getResources();
-                }
-
-                // Create an array for the resources.
-                $resources = array();
-                // Loop through all the resources and strip out any information that we don't need.
-                foreach ($resources_list as $resource) {
-                    $resources[] = Resource::getLimitedData($resource);
-                }
-                // Send the response.
-                $this->sendResponse(array('count' => count($resources), 'resources' => $resources));
-            default:
-                // Action was supported but has not yet been added to the switch statement, throw error.
-                $this->throwError(11, $this->getAction());
         }
     }
     
