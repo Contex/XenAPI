@@ -190,8 +190,8 @@ class RestAPI {
             }
             $this->limit = $this->getRequest('limit');
         } else {
-            // Limit is not set, default to 0 (all).
-            $this->limit = 0;
+            // Limit is not set, default to 100.
+            $this->limit = 100;
         }
     }
 
@@ -686,24 +686,26 @@ class RestAPI {
                 *   - api.php?action=getUsers&value=Cont*
                 *   - api.php?action=getUsers&value=C*
                 */
-                if (!$this->hasRequest('value')) {
-                    // The 'value' argument has not been set, throw error.
+                if ($this->hasRequest('value')) {
+                    // Request has value.
+                    if (!$this->getRequest('value')) {
+                        // Throw error if the 'value' argument is set but empty.
+                        $this->throwError(1, 'value');
+                        break;
+                    }
+                    // Replace the wildcard with '%' for the SQL query.
+                    $string = str_replace('*', '%', $this->getRequest('value'));
+                } else if (!$this->hasRequest('order_by')) {
+                    // Nor the 'value' argument or the 'order_by' argument has been set, throw error.
                     $this->throwError(3, 'value');
                     break;
-                } else if (!$this->getRequest('value')) {
-                    // Throw error if the 'value' argument is set but empty.
-                    $this->throwError(1, 'value');
-                    break;
-                } 
+                }
 
                 // Check if the order by argument is set.
                 $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'trophy_points', 'alerts_unread', 'like_count'));
                 
-                // Replace the wildcard with '%' for the SQL query.
-                $string = str_replace('*', '%', $this->getRequest('value'));
-                
                 // Perform the SQL query and grab all the usernames and user id's.
-                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user` WHERE `username` LIKE '$string'" . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
+                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
                 
                 // Send the response.
                 $this->sendResponse($results);
