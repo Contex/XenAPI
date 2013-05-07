@@ -84,6 +84,7 @@ class RestAPI {
                              'getgroup'     => 'public', 
                              'getresource'  => 'administrator',
                              'getresources' => 'administrator',
+                             'getstats'     => 'public',
                              'getthread'    => 'public',
                              'getthreads'   => 'public',
                              'getuser'      => 'authenticated', 
@@ -158,10 +159,10 @@ class RestAPI {
             // Sets the hash variable if the hash argument is set.
             $this->hash = $this->getRequest('hash');
         }
-        // Check if order by argument is set.
+        // Check if grab_as by argument is set.
         if ($this->hasRequest('grab_as') && $this->hasAPIKey()) {
             if (!$this->getRequest('grab_as')) {
-                // Throw error if the 'order_by' argument is set but empty.
+                // Throw error if the 'grab_as' argument is set but empty.
                 $this->throwError(1, 'grab_as');
             }
             // Create a user object with the 'grab_as' argument.
@@ -729,8 +730,7 @@ class RestAPI {
                 }
 
                 // Check if the order by argument is set.
-                // TODO: add registration & activity date
-                $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'trophy_points', 'alerts_unread', 'like_count'));
+                $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'register_date', 'last_activity', 'trophy_points', 'alerts_unread', 'like_count'));
                 
                 // Perform the SQL query and grab all the usernames and user id's.
                 $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
@@ -931,6 +931,25 @@ class RestAPI {
                     $this->sendResponse(Resource::getLimitedData($resource));
                 }
                 break;
+            case 'getstats':
+                /**
+                * Returns a summary of stats.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getStats
+                */
+                $latest_user = $this->xenAPI->getLatestUser();
+                $this->sendResponse(array(
+                    'threads'             => $this->xenAPI->getStatsItem('threads'),
+                    'posts'               => $this->xenAPI->getStatsItem('posts'),
+                    'members'             => $this->xenAPI->getStatsItem('users'),
+                    'latest_member'       => array('user_id' => $latest_user->getID(), 'username' => $latest_user->getUsername()),
+                    'registrations_today' => $this->xenAPI->getStatsItem('registrations_today'),
+                    'threads_today'       => $this->xenAPI->getStatsItem('threads_today'),
+                    'posts_today'         => $this->xenAPI->getStatsItem('posts_today'),
+                    'users_online'        => $this->xenAPI->getUsersOnlineCount($this->getUser())
+                ));
+                break;
             case 'getthread':
                 /**
                 * Returns the thread information depending on the 'value' argument.
@@ -1110,7 +1129,7 @@ class XenAPI {
     /**
     * Returns the total count of registered users on XenForo.
     */
-    public function getTotalUsersCount() {
+    public function getUserCount() {
         return $this->getModels()->getUserModel()->countTotalUsers();
     }
 
@@ -1166,6 +1185,61 @@ class XenAPI {
     */
     public function getResource($resource) {
         return new Resource($this->getModels()->getModel('resource')->getResourceById($resource));
+    }
+
+    /**
+    * TODO
+    */
+    public function getStats($start = NULL, $end = NULL, $types = NULL) {
+        $this->getModels()->checkModel('stats', XenForo_Model::create('XenForo_Model_Stats'));
+        // TODO
+        return $this->getModels()->getModel('stats')->getStatsData(time() - 5000, time());
+    }
+
+    public function getStatsItem($item) {
+        $this->getModels()->checkModel('database', XenForo_Application::get('db'));
+        switch ($item) {
+            case 'users':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_user');
+            case 'posts':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post');
+            case 'threads':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_thread');
+            case 'registrations_today':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_user WHERE register_date > UNIX_TIMESTAMP(CURDATE())');
+            case 'posts_today':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post WHERE post_date > UNIX_TIMESTAMP(CURDATE()) AND position != 0');
+            case 'threads_today':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_thread WHERE post_date > UNIX_TIMESTAMP(CURDATE())');
+            default:
+                return NULL;
+        }
+    }
+
+    /**
+    * TODO
+    */
+    public function getUsersOnlineCount($user = NULL) {
+        $this->getModels()->checkModel('session', XenForo_Model::create('XenForo_Model_Session'));
+        if ($user != NULL) {
+            // USer parameter is not null, make sure to follow privacy of the users.
+            $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+            // Check if the user can bypass user privacy.
+            $bypass = $this->getModels()->getModel('user')->canBypassUserPrivacy($null, $user);
+            $conditions = array(
+                'cutOff' => array('>', $this->getModels()->getModel('session')->getOnlineStatusTimeout()),
+                'getInvisible' => $bypass,
+                'getUnconfirmed' => $bypass,
+                'forceInclude' => ($bypass ? FALSE : $user->getID())
+            );
+        } else {
+            // User parameter is null, ignore privacy and grab all the users.
+            $conditions = array(
+                'cutOff' => array('>', $this->getModels()->getModel('session')->getOnlineStatusTimeout())
+            );
+        }
+        // Return the count of online visitors (users + guests).
+        return $this->getModels()->getModel('session')->countSessionActivityRecords($conditions);
     }
 
     /**
