@@ -30,7 +30,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
     $restAPI->throwError(1, 'hash');
 } else if (!$restAPI->isAuthenticated() && !$restAPI->isPublicAction()) {
     // Hash is not valid and action is not public, throw error.
-    $restAPI->throwError(6, $restAPI->getHash());
+    $restAPI->throwError(6, $restAPI->getHash(), 'hash');
 } else if (!$restAPI->hasRequest('action')) {
     // Action argument was not found, throw error.
     $restAPI->throwError(3, 'action');
@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const version = '1.3';
+    const version = '1.3.dev';
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -98,10 +98,10 @@ class RestAPI {
                             1  => 'Argument: "{ERROR}", is empty/missing a value',
                             2  => '"{ERROR}", is not a supported action',
                             3  => 'Missing argument: "{ERROR}"',
-                            4  => 'No user found with the argument: "{ERROR}"',
+                            4  => 'No {ERROR} found with the argument: "{ERROR2}"',
                             5  => 'Authentication error: "{ERROR}"',
-                            6  => '"{ERROR}" is not a valid hash',
-                            7  => 'No group found with the argument: "{ERROR}"',
+                            6  => '"{ERROR}" is not a valid {ERROR2}',
+                            7  => 'PLACEHOLDER',
                             8  => 'PLACEHOLDER',
                             9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
                             10 => 'You do not have permission to use the "{ERROR}" action',
@@ -444,7 +444,7 @@ class RestAPI {
                 $user = $this->xenAPI->getUser($this->getRequest('value'));
                 if (!$user->isRegistered()) {
                     // Throw error if the 'value' user is not registered.
-                    $this->throwError(4, $this->getRequest('value'));
+                    $this->throwError(4, 'user', $this->getRequest('value'));
                     break;
                 }
             } else if ($this->hasRequest('hash')) {
@@ -494,7 +494,7 @@ class RestAPI {
                 $user = $this->xenAPI->getUser($this->getRequest('username'));
                 if (!$user->isRegistered()) {
                     // Requested user was not registered, throw error.
-                    $this->throwError(4, $this->getRequest('username'));
+                    $this->throwError(4, 'user', $this->getRequest('username'));
                 } else {
                     // Requested user was registered, check authentication.
                     if ($user->validateAuthentication($this->getRequest('password'))) {
@@ -702,6 +702,7 @@ class RestAPI {
                 }
 
                 // Check if the order by argument is set.
+                // TODO: add registration & activity date
                 $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'trophy_points', 'alerts_unread', 'like_count'));
                 
                 // Perform the SQL query and grab all the usernames and user id's.
@@ -741,7 +742,7 @@ class RestAPI {
                 }
                 if (!$group) {
                     // Could not find any groups, throw error.
-                    $this->throwError(7, $string);
+                    $this->throwError(4, 'group', $string);
                 } else {
                     // Group was found, send response.
                     $this->sendResponse($group);
@@ -940,6 +941,71 @@ class RestAPI {
                     $this->sendResponse($thread);
                 }
                 break;
+            case 'getthreads':
+                /**
+                * Returns a list of threads.
+                *
+                * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getThreads&hash=USERNAME:HASH
+                *   - api.php?action=getThreads&hash=API_KEY
+                *   - api.php?action=getThreads&author=Contex&hash=USERNAME:HASH
+                *   - api.php?action=getThreads&author=1&hash=API_KEY
+                */
+                // Init variables.
+                $conditions = array();
+                $fetch_options = array('limit' => $this->limit);
+
+                // Check if request has author.
+                if ($this->hasRequest('author')) {
+                    if (!$this->getRequest('author')) {
+                        // Throw error if the 'author' argument is set but empty.
+                        $this->throwError(1, 'author');
+                        break;
+                    }
+                    // Grab the user object of the author.
+                    $user = $this->xenAPI->getUser($this->getRequest('author'));
+                    if (!$user->isRegistered()) {
+                        // Throw error if the 'author' user is not registered.
+                        $this->throwError(4, 'user', $this->getRequest('author'));
+                        break;
+                    }
+                    // Add the user ID to the query conditions.
+                    $conditions['user_id'] = $user->getID();
+                }
+
+                // Check if request has author.
+                if ($this->hasRequest('node_id')) {
+                    if (!$this->getRequest('node_id') && (is_numeric($this->getRequest('node_id')) && $this->getRequest('node_id') != 0)) {
+                        // Throw error if the 'node_id' argument is set but empty.
+                        $this->throwError(1, 'node_id');
+                    } else if (!is_numeric($this->getRequest('node_id'))) {
+                        // Throw error if the 'limit' argument is set but not a number.
+                        $this->throwError(21, 'node_id');
+                    }
+                    if (!$this->xenAPI->getNode($this->getRequest('node_id'))) {
+                        // Could not find any nodes, throw error.
+                        $this->throwError(4, 'node', $this->getRequest('node_id'));
+                    }
+                    // Add the node ID to the query conditions.
+                    $conditions['node_id'] = $this->getRequest('node_id');
+                }
+
+                // Check if the order by argument is set.
+                $order_by_field = $this->checkOrderBy(array('title', 'post_date', 'view_count', 'reply_count', 'first_post_likes', 'last_post_date'));
+
+                // Add the order by options to the fetch options.
+                if ($this->hasRequest('order_by')) {
+                    $fetch_options['order']          = $order_by_field;
+                    $fetch_options['orderDirection'] = $this->order;
+                }
+
+                // Get the threads.
+                $threads = $this->getXenAPI()->getThreads($conditions, $fetch_options, $this->getUser());
+
+                // Send the response.
+                $this->sendResponse(array('count' => count($threads), 'threads' => $threads));
         }
     }
     
@@ -1079,6 +1145,14 @@ class XenAPI {
     }
 
     /**
+    * Returns the Node array of the $node_id parameter.
+    */
+    public function getNode($node_id) {
+        $this->getModels()->checkModel('node', XenForo_Model::create('XenForo_Model_Node'));
+        return $this->getModels()->getModel('node')->getNodeByID($node_id);
+    }
+
+    /**
     * Returns the Thread array of the $thread_id parameter.
     */
     public function getThread($thread_id, $fetch_options = array()) {
@@ -1087,15 +1161,41 @@ class XenAPI {
     }
 
     /**
+    * Returns a list of threads.
+    */
+    public function getThreads($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
+        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        if ($user == NULL) {
+            $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
+            return $thread_list;
+        }
+        $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
+        // Loop through the threads to check if the user has permissions to view the thread.
+        foreach ($thread_list as $key => $thread) {
+            $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+            if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
+                // User does not have permission to view this thread, unset it and continue the loop.
+                unset($thread_list[$key]);
+            }
+            unset($thread_list[$key]['node_permission_cache']);
+        }
+        return $thread_list;
+    }
+
+
+    /**
     * Returns the Thread array of the $thread_id parameter.
     */
-    public function canViewThread($user, $thread) {
+    public function canViewThread($user, $thread, $permissions = NULL) {
         // Check if the thread model has initialized.
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
-        // Let's grab the permissions.
-        $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
-        // Unserialize the permissions.
-        $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+        if ($node_permission_cache == NULL) {
+            // Let's grab the permissions.
+            $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+
+            // Unserialize the permissions.
+            $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+        }
         return ($this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData()));
     }
     
