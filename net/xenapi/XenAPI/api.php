@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 $time_start = microtime(TRUE);
-$restAPI = new RestAPI(); 
-$restAPI->setAPIKey('API_KEY');
+$options = array('api_key' => 'API_KEY');
+$restAPI = new RestAPI($options); 
 
 if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') { 
     // API is set but not changed from the default API key.
@@ -114,7 +114,7 @@ class RestAPI {
                             17 => 'The API key has not been changed, make sure you use another API key before using this API.',
                             18 => '"{ERROR} is a unknown permission name, the request was terminated.',
                             19 => 'Could not find a thread with ID "{ERROR}".',
-                            20 => 'You do not have permissions to view {ERROR}.',
+                            20 => '{ERROR} not have permissions to view {ERROR2}.',
                             21 => 'The "{ERROR}" argument has to be a number.',
                             22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})".');
 
@@ -124,7 +124,7 @@ class RestAPI {
     * Default constructor for the RestAPI class.
     * The data gets set here depending on what kind of request method is being used.
     */
-    public function __construct() {
+    public function __construct($options = array()) {
         $this->method = strtolower($_SERVER['REQUEST_METHOD']);  
         switch ($this->method) {  
             case 'get':  
@@ -144,11 +144,33 @@ class RestAPI {
         }
         $this->xenAPI = new XenAPI();
 
+        // Check if there are any options.
+        if (is_array($options) && count($options) > 0) {
+            if (isset($options['api_key']) && !empty($options['api_key'])) {
+                // Set the API key.
+                $this->apikey = $options['api_key'];
+            }
+        }
+
         // Lowercase the key data, ignores the case of the arguments.
         $this->data = array_change_key_case($this->data);
         if ($this->hasRequest('hash')) {
             // Sets the hash variable if the hash argument is set.
             $this->hash = $this->getRequest('hash');
+        }
+        // Check if order by argument is set.
+        if ($this->hasRequest('grab_as') && $this->hasAPIKey()) {
+            if (!$this->getRequest('grab_as')) {
+                // Throw error if the 'order_by' argument is set but empty.
+                $this->throwError(1, 'grab_as');
+            }
+            // Create a user object with the 'grab_as' argument.
+            $this->grab_as = $this->xenAPI->getUser($this->getRequest('grab_as'));
+            if (!$this->grab_as->isRegistered()) {
+                // Throw error if the 'grab_as' user is not registered.
+                $this->throwError(4, 'user', $this->getRequest('grab_as'));
+                break;
+            }
         }
         // Check if order by argument is set.
         if ($this->hasRequest('order_by')) {
@@ -307,9 +329,14 @@ class RestAPI {
     * Returns FALSE if the hash is not an userhash.
     */
     public function getUser() {
-        if (strpos($this->getHash(), ':') !== FALSE) {
+        if (isset($this->user) && $this->user != NULL) {
+            return $this->user;
+        } else if (isset($this->grab_as) && $this->grab_as != NULL) {
+            return $this->grab_as;
+        } else if (strpos($this->getHash(), ':') !== FALSE) {
             $array = explode(':', $this->getHash());
-            return $this->xenAPI->getUser($array[0]);
+            $this->user = $this->xenAPI->getUser($array[0]);
+            return $this->user;
         }    
         return FALSE;
     }
@@ -933,9 +960,14 @@ class RestAPI {
                 if ($thread == NULL) {
                      // Could not find the thread, throw error.
                     $this->throwError(19, $string);
-                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
-                    // Thread was found but the user is not permitted to view the thread.
-                    $this->throwError(20, 'this thread');
+                } else if (!$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
+                    if (!$this->hasAPIKey()) {
+                        // Thread was found but the user is not permitted to view the thread.
+                        $this->throwError(20, 'you do', 'this thread');
+                    } else if ($this->hasAPIKey() && isset($this->grab_as)) {
+                        // Thread was found but the 'grab_as' user is not permitted to view the thread.
+                        $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this thread');
+                    }
                 } else {
                      // Thread was found, and the request was permitted.
                     $this->sendResponse($thread);
@@ -1189,7 +1221,7 @@ class XenAPI {
     public function canViewThread($user, $thread, $permissions = NULL) {
         // Check if the thread model has initialized.
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
-        if ($node_permission_cache == NULL) {
+        if ($permissions == NULL) {
             // Let's grab the permissions.
             $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
 
