@@ -476,7 +476,7 @@ class RestAPI {
                 }
             } else if ($this->hasRequest('hash')) {
                 // The 'value' argument was not set, check if hash is an API key.
-                if ($this->hasAPIKey()) {
+                if ($this->hasAPIKey() && !isset($this->grab_as)) {
                     /**
                     * The 'hash' argument is an API key, and the 'value' argument
                     * is required but not set, throw error.
