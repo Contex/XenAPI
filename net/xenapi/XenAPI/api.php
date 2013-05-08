@@ -82,6 +82,8 @@ class RestAPI {
                              'getalerts'    => 'private', 
                              'getavatar'    => 'public', 
                              'getgroup'     => 'public', 
+                             'getpost'      => 'public',
+                             'getposts'     => 'public',
                              'getresource'  => 'administrator',
                              'getresources' => 'administrator',
                              'getstats'     => 'public',
@@ -537,154 +539,6 @@ class RestAPI {
                     }
                 }
                 break;
-            case 'getalerts':
-                /**
-                * Grabs the alerts from the specified user, if type is not specified, 
-                * default (recent alerts) is used instead.
-                * 
-                * NOTE: The 'value' argument will only work for the user itself and
-                *       not on others users unless the permission argument for the 
-                *       'getalerts' action is changed (default permission: private).
-                *
-                * Options for the 'type' argument are:
-                *     - fetchPopupItems: Fetch alerts viewed in the last options:alertsPopupExpiryHours hours.
-                *     - fetchRecent:     Fetch alerts viewed in the last options:alertExpiryDays days.
-                *     - fetchAll:        Fetch alerts regardless of their view_date.
-                *
-                * For more information, see /library/XenForo/Model/Alert.php.
-                *
-                * EXAMPLES: 
-                *   - api.php?action=getAlerts&hash=USERNAME:HASH
-                *   - api.php?action=getAlerts&type=fetchAll&hash=USERNAME:HASH
-                *   - api.php?action=getAlerts&value=USERNAME&hash=USERNAME:HASH
-                *   - api.php?action=getAlerts&value=USERNAME&type=fetchAll&hash=USERNAME:HASH
-                *   - api.php?action=getAlerts&value=USERNAME&hash=API_KEY
-                *   - api.php?action=getAlerts&value=USERNAME&type=fetchAll&hash=API_KEY
-                */
-                /* 
-                * Check if the request has the 'type' argument set, 
-                * if it doesn't it uses the default (fetchRecent).
-                */
-                if ($this->hasRequest('type')) {
-                    if (!$this->getRequest('type')) {
-                        // Throw error if the 'type' argument is set but empty.
-                        $this->throwError(1, 'type');
-                        break;
-                    }
-                    // Use the value from the 'type' argument to get the alerts.
-                    $data = $user->getAlerts($this->getRequest('type'));
-                } else {
-                    // Use the default type to get the alerts.
-                    $data = $user->getAlerts();
-                }
-                // Send the response.
-                $this->sendResponse($data);
-                break;
-            case 'getuser': 
-                /**
-                * Grabs and returns an user object.
-                * 
-                * EXAMPLES: 
-                *   - api.php?action=getUser&hash=USERNAME:HASH
-                *   - api.php?action=getUser&value=USERNAME&hash=USERNAME:HASH
-                *   - api.php?action=getUser&value=USERNAME&hash=API_KEY
-                */
-                $data = $user->getData();
-                
-                /*
-                * Run through an additional permission check if the request is
-                * not using an API key, unset some variables depending on the 
-                * user level.
-                */
-                if (!$this->hasAPIKey()) {
-                    // Unset variables since the API key isn't used.
-                    if (isset($data['style_id'])) {
-                        unset($data['style_id']);
-                    }
-                    if (isset($data['display_style_group_id'])) {
-                        unset($data['display_style_group_id']);
-                    }
-                    if (isset($data['permission_combination_id'])) {
-                        unset($data['permission_combination_id']);
-                    }
-                    if (!$this->getUser()->isAdmin()) {
-                        // Unset variables if user is not an admin.
-                        if (isset($data['is_banned'])) {
-                            unset($data['is_banned']);
-                        }
-                    }
-                    if (!$this->getUser()->isModerator()) {
-                        // Unset variables if user is not a moderator.
-                        if (isset($data['user_state'])) {
-                            unset($data['user_state']);
-                        }
-                        if (isset($data['visible'])) {
-                            unset($data['visible']);
-                        }
-                        if (isset($data['email'])) {
-                            unset($data['email']);
-                        }
-                    } 
-                    if ($this->getUser()->getID() != $user->getID()) {
-                        // Unset variables if user does not equal the requested user by the 'value' argument.
-                        if (isset($data['language_id'])) {
-                            unset($data['language_id']);
-                        }
-                        if (isset($data['message_count'])) {
-                            unset($data['message_count']);
-                        }
-                        if (isset($data['conversations_unread'])) {
-                            unset($data['conversations_unread']);
-                        }
-                        if (isset($data['alerts_unread'])) {
-                            unset($data['alerts_unread']);
-                        }
-                    }
-                }
-                // Send the response.
-                $this->sendResponse($data);
-                break;
-            case 'getavatar': 
-                /**
-                * Returns the avatar of the requested user.
-                *
-                * Options for the 'size' argument are:
-                *   - s (Small)
-                *   - m (Medium)
-                *   - l (Large)
-                *
-                * NOTE: The default avatar size is 'Medium'.
-                * 
-                * EXAMPLES: 
-                *   - api.php?action=getAvatar&hash=USERNAME:HASH
-                *   - api.php?action=getAvatar&size=M&hash=USERNAME:HASH
-                *   - api.php?action=getAvatar&value=USERNAME&hash=USERNAME:HASH
-                *   - api.php?action=getAvatar&value=USERNAME&size=M&hash=USERNAME:HASH
-                *   - api.php?action=getAvatar&value=USERNAME&hash=API_KEY
-                *   - api.php?action=getAvatar&value=USERNAME&size=M&hash=API_KEY
-                */
-                if ($this->hasRequest('size')) {
-                    if (!$this->getRequest('size')) {
-                        // Throw error if the 'size' argument is set but empty.
-                        $this->throwError(1, 'size');
-                        break;
-                    }
-                    // Use the value from the 'size' argument.
-                    $size = strtolower($this->getRequest('size'));
-                    if (!in_array($size, array('s', 'm', 'l'))) {
-                        /**
-                        * The value from the 'size' argument was not valid,
-                        * use default size (medium) instead.
-                        */
-                        $size = 'm';
-                    }
-                } else {
-                    // No specific size was requested, use default size (medium):
-                    $size = 'm';
-                }
-                // Send the response.
-                $this->sendResponse(array('avatar' => $user->getAvatar($size)));
-                break;
             case 'getactions':
                 /**
                 * Returns the actions and their permission levels.
@@ -703,50 +557,16 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($this->actions);
                 break;
-            case 'getusers': 
+            case 'getaddon': 
                 /**
-                * Searches through the usernames depending on the input.
+                * Returns the addon information depending on the 'value' argument.
                 *
-                * NOTE: Asterisk (*) can be used as a wildcard.
+                * NOTE: Only addon ID's can be used for the 'value' parameter.
+                *       Addon ID's can be found by using the 'getAlerts' action.
                 *
                 * EXAMPLE:
-                *   - api.php?action=getUsers&value=Contex
-                *   - api.php?action=getUsers&value=Cont*
-                *   - api.php?action=getUsers&value=C*
-                */
-                if ($this->hasRequest('value')) {
-                    // Request has value.
-                    if (!$this->getRequest('value')) {
-                        // Throw error if the 'value' argument is set but empty.
-                        $this->throwError(1, 'value');
-                        break;
-                    }
-                    // Replace the wildcard with '%' for the SQL query.
-                    $string = str_replace('*', '%', $this->getRequest('value'));
-                } else if (!$this->hasRequest('order_by')) {
-                    // Nor the 'value' argument or the 'order_by' argument has been set, throw error.
-                    $this->throwError(3, 'value');
-                    break;
-                }
-
-                // Check if the order by argument is set.
-                $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'register_date', 'last_activity', 'trophy_points', 'alerts_unread', 'like_count'));
-                
-                // Perform the SQL query and grab all the usernames and user id's.
-                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
-                
-                // Send the response.
-                $this->sendResponse($results);
-                break;
-            case 'getgroup': 
-                /**
-                * Returns the group information depending on the 'value' argument.
-                *
-                * NOTE: Only group titles, user titles and group ID's can be used for the 'value' parameter.
-                *
-                * EXAMPLE:
-                *   - api.php?action=getGroup&value=1
-                *   - api.php?action=getGroup&value=Guest
+                *   - api.php?action=getAddon&value=PostRating&hash=USERNAME:HASH
+                *   - api.php?action=getAddon&value=PostRating&hash=API_KEY
                 */
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
@@ -758,21 +578,14 @@ class RestAPI {
                     break;
                 }
                 $string = $this->getRequest('value');
-                
-                // Check if the 'value' argument is a number (ID).
-                if (is_numeric($string)) {
-                    // The 'value' argument was a number, search by the group ID.
-                    $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = $string");
+                // Try to grab the addon from XenForo.
+                $addon = $this->getXenAPI()->getAddon($string);
+                if (!$addon->isInstalled()) {
+                    // Could not find the addon, throw error.
+                    $this->throwError(13, $string);
                 } else {
-                    // The 'value' argument was not a number, search by the group title and user title instead.
-                    $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `title` = '$string' OR `user_title` = '$string'");
-                }
-                if (!$group) {
-                    // Could not find any groups, throw error.
-                    $this->throwError(4, 'group', $string);
-                } else {
-                    // Group was found, send response.
-                    $this->sendResponse($group);
+                    // Addon was found, send response.
+                    $this->sendResponse(Addon::getLimitedData($addon));
                 }
                 break;
             case 'getaddons':
@@ -818,16 +631,99 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse(array('count' => count($addons), 'addons' => $addons));
                 break;
-            case 'getaddon': 
+            case 'getalerts':
                 /**
-                * Returns the addon information depending on the 'value' argument.
+                * Grabs the alerts from the specified user, if type is not specified, 
+                * default (recent alerts) is used instead.
+                * 
+                * NOTE: The 'value' argument will only work for the user itself and
+                *       not on others users unless the permission argument for the 
+                *       'getalerts' action is changed (default permission: private).
                 *
-                * NOTE: Only addon ID's can be used for the 'value' parameter.
-                *       Addon ID's can be found by using the 'getAlerts' action.
+                * Options for the 'type' argument are:
+                *     - fetchPopupItems: Fetch alerts viewed in the last options:alertsPopupExpiryHours hours.
+                *     - fetchRecent:     Fetch alerts viewed in the last options:alertExpiryDays days.
+                *     - fetchAll:        Fetch alerts regardless of their view_date.
+                *
+                * For more information, see /library/XenForo/Model/Alert.php.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getAlerts&hash=USERNAME:HASH
+                *   - api.php?action=getAlerts&type=fetchAll&hash=USERNAME:HASH
+                *   - api.php?action=getAlerts&value=USERNAME&hash=USERNAME:HASH
+                *   - api.php?action=getAlerts&value=USERNAME&type=fetchAll&hash=USERNAME:HASH
+                *   - api.php?action=getAlerts&value=USERNAME&hash=API_KEY
+                *   - api.php?action=getAlerts&value=USERNAME&type=fetchAll&hash=API_KEY
+                */
+                /* 
+                * Check if the request has the 'type' argument set, 
+                * if it doesn't it uses the default (fetchRecent).
+                */
+                if ($this->hasRequest('type')) {
+                    if (!$this->getRequest('type')) {
+                        // Throw error if the 'type' argument is set but empty.
+                        $this->throwError(1, 'type');
+                        break;
+                    }
+                    // Use the value from the 'type' argument to get the alerts.
+                    $data = $user->getAlerts($this->getRequest('type'));
+                } else {
+                    // Use the default type to get the alerts.
+                    $data = $user->getAlerts();
+                }
+                // Send the response.
+                $this->sendResponse($data);
+                break;
+            case 'getavatar': 
+                /**
+                * Returns the avatar of the requested user.
+                *
+                * Options for the 'size' argument are:
+                *   - s (Small)
+                *   - m (Medium)
+                *   - l (Large)
+                *
+                * NOTE: The default avatar size is 'Medium'.
+                * 
+                * EXAMPLES: 
+                *   - api.php?action=getAvatar&hash=USERNAME:HASH
+                *   - api.php?action=getAvatar&size=M&hash=USERNAME:HASH
+                *   - api.php?action=getAvatar&value=USERNAME&hash=USERNAME:HASH
+                *   - api.php?action=getAvatar&value=USERNAME&size=M&hash=USERNAME:HASH
+                *   - api.php?action=getAvatar&value=USERNAME&hash=API_KEY
+                *   - api.php?action=getAvatar&value=USERNAME&size=M&hash=API_KEY
+                */
+                if ($this->hasRequest('size')) {
+                    if (!$this->getRequest('size')) {
+                        // Throw error if the 'size' argument is set but empty.
+                        $this->throwError(1, 'size');
+                        break;
+                    }
+                    // Use the value from the 'size' argument.
+                    $size = strtolower($this->getRequest('size'));
+                    if (!in_array($size, array('s', 'm', 'l'))) {
+                        /**
+                        * The value from the 'size' argument was not valid,
+                        * use default size (medium) instead.
+                        */
+                        $size = 'm';
+                    }
+                } else {
+                    // No specific size was requested, use default size (medium):
+                    $size = 'm';
+                }
+                // Send the response.
+                $this->sendResponse(array('avatar' => $user->getAvatar($size)));
+                break;
+            case 'getgroup': 
+                /**
+                * Returns the group information depending on the 'value' argument.
+                *
+                * NOTE: Only group titles, user titles and group ID's can be used for the 'value' parameter.
                 *
                 * EXAMPLE:
-                *   - api.php?action=getAddon&value=PostRating&hash=USERNAME:HASH
-                *   - api.php?action=getAddon&value=PostRating&hash=API_KEY
+                *   - api.php?action=getGroup&value=1
+                *   - api.php?action=getGroup&value=Guest
                 */
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
@@ -839,14 +735,98 @@ class RestAPI {
                     break;
                 }
                 $string = $this->getRequest('value');
-                // Try to grab the addon from XenForo.
-                $addon = $this->getXenAPI()->getAddon($string);
-                if (!$addon->isInstalled()) {
-                    // Could not find the addon, throw error.
-                    $this->throwError(13, $string);
+                
+                // Check if the 'value' argument is a number (ID).
+                if (is_numeric($string)) {
+                    // The 'value' argument was a number, search by the group ID.
+                    $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = $string");
                 } else {
-                    // Addon was found, send response.
-                    $this->sendResponse(Addon::getLimitedData($addon));
+                    // The 'value' argument was not a number, search by the group title and user title instead.
+                    $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `title` = '$string' OR `user_title` = '$string'");
+                }
+                if (!$group) {
+                    // Could not find any groups, throw error.
+                    $this->throwError(4, 'group', $string);
+                } else {
+                    // Group was found, send response.
+                    $this->sendResponse($group);
+                }
+                break;
+            case 'getpost':
+                /**
+                * Returns the post information depending on the 'value' argument.
+                *
+                * NOTE: Only post ID's can be used for the 'value' parameter.
+                *       Post ID's can be found by using the 'getPosts' action.
+                *
+                *       The user needs permission to see the thread if the request is
+                *       using a user hash and not an API key.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getPost&value=820&hash=USERNAME:HASH
+                *   - api.php?action=getPost&value=820&hash=API_KEY
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' argument has not been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' argument is set but empty.
+                    $this->throwError(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the post from XenForo.
+                $post = $this->getXenAPI()->getPost($string, array('join' => XenForo_Model_Post::FETCH_FORUM));
+                if ($post == NULL) {
+                     // Could not find the post, throw error.
+                    $this->throwError(19, $string);
+                } else if (!$this->getXenAPI()->canViewPost($this->getUser(), $post)) {
+                    if (!$this->hasAPIKey()) {
+                        // Thread was found but the user is not permitted to view the post.
+                        $this->throwError(20, 'You do', 'this post');
+                    } else if ($this->hasAPIKey() && isset($this->grab_as)) {
+                        // Thread was found but the 'grab_as' user is not permitted to view the post.
+                        $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this post');
+                    }
+                } else {
+                     // Thread was found, and the request was permitted.
+                    $this->sendResponse($post);
+                }
+                break;
+            case 'getresource': 
+                /**
+                * Returns the resource information depending on the 'value' argument.
+                *
+                * NOTE: Only resource ID's can be used for the 'value' parameter.
+                *       Resource ID's can be found by using the 'getResources' action.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getResource&value=1&hash=USERNAME:HASH
+                *   - api.php?action=getResource&value=1&hash=API_KEY
+                */
+                if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
+                    $this->throwError(16, 'resource');
+                    break;
+                }
+                if (!$this->hasRequest('value')) {
+                    // The 'value' argument has not been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' argument is set but empty.
+                    $this->throwError(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the addon from XenForo.
+                $resource = $this->getXenAPI()->getResource($string);
+                if (!$resource->isValid()) {
+                    // Could not find the resource, throw error.
+                    $this->throwError(15, $string);
+                } else {
+                    // Resource was found, send response.
+                    $this->sendResponse(Resource::getLimitedData($resource));
                 }
                 break;
             case 'getresources':
@@ -896,41 +876,6 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse(array('count' => count($resources), 'resources' => $resources));
-            case 'getresource': 
-                /**
-                * Returns the resource information depending on the 'value' argument.
-                *
-                * NOTE: Only resource ID's can be used for the 'value' parameter.
-                *       Resource ID's can be found by using the 'getResources' action.
-                *
-                * EXAMPLE:
-                *   - api.php?action=getResource&value=1&hash=USERNAME:HASH
-                *   - api.php?action=getResource&value=1&hash=API_KEY
-                */
-                if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
-                    $this->throwError(16, 'resource');
-                    break;
-                }
-                if (!$this->hasRequest('value')) {
-                    // The 'value' argument has not been set, throw error.
-                    $this->throwError(3, 'value');
-                    break;
-                } else if (!$this->getRequest('value')) {
-                    // Throw error if the 'value' argument is set but empty.
-                    $this->throwError(1, 'value');
-                    break;
-                }
-                $string = $this->getRequest('value');
-                // Try to grab the addon from XenForo.
-                $resource = $this->getXenAPI()->getResource($string);
-                if (!$resource->isValid()) {
-                    // Could not find the resource, throw error.
-                    $this->throwError(15, $string);
-                } else {
-                    // Resource was found, send response.
-                    $this->sendResponse(Resource::getLimitedData($resource));
-                }
-                break;
             case 'getstats':
                 /**
                 * Returns a summary of stats.
@@ -1006,6 +951,7 @@ class RestAPI {
                 */
                 // Init variables.
                 $conditions = array();
+                $this->limit = 10;
                 $fetch_options = array('limit' => $this->limit);
 
                 // Check if request has author.
@@ -1057,6 +1003,105 @@ class RestAPI {
 
                 // Send the response.
                 $this->sendResponse(array('count' => count($threads), 'threads' => $threads));
+            case 'getuser': 
+                /**
+                * Grabs and returns an user object.
+                * 
+                * EXAMPLES: 
+                *   - api.php?action=getUser&hash=USERNAME:HASH
+                *   - api.php?action=getUser&value=USERNAME&hash=USERNAME:HASH
+                *   - api.php?action=getUser&value=USERNAME&hash=API_KEY
+                */
+                $data = $user->getData();
+                
+                /*
+                * Run through an additional permission check if the request is
+                * not using an API key, unset some variables depending on the 
+                * user level.
+                */
+                if (!$this->hasAPIKey()) {
+                    // Unset variables since the API key isn't used.
+                    if (isset($data['style_id'])) {
+                        unset($data['style_id']);
+                    }
+                    if (isset($data['display_style_group_id'])) {
+                        unset($data['display_style_group_id']);
+                    }
+                    if (isset($data['permission_combination_id'])) {
+                        unset($data['permission_combination_id']);
+                    }
+                    if (!$this->getUser()->isAdmin()) {
+                        // Unset variables if user is not an admin.
+                        if (isset($data['is_banned'])) {
+                            unset($data['is_banned']);
+                        }
+                    }
+                    if (!$this->getUser()->isModerator()) {
+                        // Unset variables if user is not a moderator.
+                        if (isset($data['user_state'])) {
+                            unset($data['user_state']);
+                        }
+                        if (isset($data['visible'])) {
+                            unset($data['visible']);
+                        }
+                        if (isset($data['email'])) {
+                            unset($data['email']);
+                        }
+                    } 
+                    if ($this->getUser()->getID() != $user->getID()) {
+                        // Unset variables if user does not equal the requested user by the 'value' argument.
+                        if (isset($data['language_id'])) {
+                            unset($data['language_id']);
+                        }
+                        if (isset($data['message_count'])) {
+                            unset($data['message_count']);
+                        }
+                        if (isset($data['conversations_unread'])) {
+                            unset($data['conversations_unread']);
+                        }
+                        if (isset($data['alerts_unread'])) {
+                            unset($data['alerts_unread']);
+                        }
+                    }
+                }
+                // Send the response.
+                $this->sendResponse($data);
+                break;
+            case 'getusers': 
+                /**
+                * Searches through the usernames depending on the input.
+                *
+                * NOTE: Asterisk (*) can be used as a wildcard.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getUsers&value=Contex
+                *   - api.php?action=getUsers&value=Cont*
+                *   - api.php?action=getUsers&value=C*
+                */
+                if ($this->hasRequest('value')) {
+                    // Request has value.
+                    if (!$this->getRequest('value')) {
+                        // Throw error if the 'value' argument is set but empty.
+                        $this->throwError(1, 'value');
+                        break;
+                    }
+                    // Replace the wildcard with '%' for the SQL query.
+                    $string = str_replace('*', '%', $this->getRequest('value'));
+                } else if (!$this->hasRequest('order_by')) {
+                    // Nor the 'value' argument or the 'order_by' argument has been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                }
+
+                // Check if the order by argument is set.
+                $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'register_date', 'last_activity', 'trophy_points', 'alerts_unread', 'like_count'));
+                
+                // Perform the SQL query and grab all the usernames and user id's.
+                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
+                
+                // Send the response.
+                $this->sendResponse($results);
+                break;
         }
     }
     
@@ -1259,6 +1304,57 @@ class XenAPI {
     }
 
     /**
+    * Returns the Post array of the $post_id parameter.
+    */
+    public function getPost($post_id, $fetch_options = array()) {
+        $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+        return $this->getModels()->getModel('post')->getPostById($post_id, $fetch_options);
+    }
+
+    /**
+    * Returns a list of posts.
+    */
+    public function getPosts($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
+        #TODO
+        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        if ($user == NULL) {
+            $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
+            return $thread_list;
+        }
+        $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
+        // Loop through the threads to check if the user has permissions to view the thread.
+        foreach ($thread_list as $key => $thread) {
+            $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+            if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
+                // User does not have permission to view this thread, unset it and continue the loop.
+                unset($thread_list[$key]);
+            }
+            unset($thread_list[$key]['node_permission_cache']);
+        }
+        return $thread_list;
+    }
+
+    /**
+    * Check if user has permissions to view post.
+    */
+    public function canViewPost($user, $post, $permissions = NULL) {
+        // Check if the post model has initialized.
+        $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+        if ($permissions == NULL) {
+            // Let's grab the permissions.
+            $post = $this->getPost($post['post_id'], array(
+                'permissionCombinationId' => $user->data['permission_combination_id'],
+                'join' => XenForo_Model_Post::FETCH_FORUM
+            ));
+
+            // Unserialize the permissions.
+            $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
+        }
+        return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData());
+    }
+
+
+    /**
     * Returns the Thread array of the $thread_id parameter.
     */
     public function getThread($thread_id, $fetch_options = array()) {
@@ -1302,7 +1398,7 @@ class XenAPI {
             // Unserialize the permissions.
             $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
         }
-        return ($this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData()));
+        return $this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData());
     }
     
     /**
