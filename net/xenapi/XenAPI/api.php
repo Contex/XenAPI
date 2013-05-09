@@ -75,53 +75,56 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-                             'authenticate'    => 'public',
-                             'getactions'      => 'public', 
-                             'getaddon'        => 'administrator',
-                             'getaddons'       => 'administrator',
-                             'getalerts'       => 'private', 
-                             'getavatar'       => 'public', 
-                             'getgroup'        => 'public', 
-                             'getpost'         => 'public',
-                             'getposts'        => 'public',
-                             'getprofilepost'  => 'authenticated',
-                             'getprofileposts' => 'authenticated',
-                             'getresource'     => 'administrator',
-                             'getresources'    => 'administrator',
-                             'getstats'        => 'public',
-                             'getthread'       => 'public',
-                             'getthreads'      => 'public',
-                             'getuser'         => 'authenticated', 
-                             'getusers'        => 'public');
+        'authenticate'     => 'public',
+        'getactions'       => 'public', 
+        'getaddon'         => 'administrator',
+        'getaddons'        => 'administrator',
+        'getalerts'        => 'private', 
+        'getavatar'        => 'public',
+        'getconversations' => 'private',
+        'getgroup'         => 'public', 
+        'getpost'          => 'public',
+        'getposts'         => 'public',
+        'getprofilepost'   => 'authenticated',
+        'getprofileposts'  => 'authenticated',
+        'getresource'      => 'administrator',
+        'getresources'     => 'administrator',
+        'getstats'         => 'public',
+        'getthread'        => 'public',
+        'getthreads'       => 'public',
+        'getuser'          => 'authenticated', 
+        'getusers'         => 'public'
+    );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
-    private $user_actions = array('getalerts', 'getuser', 'getavatar');
+    private $user_actions = array('getalerts', 'getavatar', 'getconversations', 'getuser');
     
     // List of errors, this is where the 'throwErrorF' function gets the messages from.
     private $errors = array(
-                            0  => 'Unknown error', 
-                            1  => 'Argument: "{ERROR}", is empty/missing a value',
-                            2  => '"{ERROR}", is not a supported action',
-                            3  => 'Missing argument: "{ERROR}"',
-                            4  => 'No {ERROR} found with the argument: "{ERROR2}"',
-                            5  => 'Authentication error: "{ERROR}"',
-                            6  => '"{ERROR}" is not a valid {ERROR2}',
-                            7  => 'PLACEHOLDER',
-                            8  => 'PLACEHOLDER',
-                            9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
-                            10 => 'You do not have permission to use the "{ERROR}" action',
-                            11 => '"{ERROR}" is a supported action but there is no code for it yet',
-                            12 => '"{ERROR}" is a unknown request method.',
-                            13 => '"{ERROR}" is not an installed addon.',
-                            14 => '"{ERROR}" is not an author of any resources.',
-                            15 => 'Could not find a resource with ID "{ERROR}".',
-                            16 => 'Could not find a required model to perform this request: "{ERROR}".',
-                            17 => 'The API key has not been changed, make sure you use another API key before using this API.',
-                            18 => '"{ERROR} is a unknown permission name, the request was terminated.',
-                            19 => 'Could not find a {ERROR} with ID "{ERROR2}".',
-                            20 => '{ERROR} not have permissions to view {ERROR2}.',
-                            21 => 'The "{ERROR}" argument has to be a number.',
-                            22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})".');
+        0  => 'Unknown error', 
+        1  => 'Argument: "{ERROR}", is empty/missing a value',
+        2  => '"{ERROR}", is not a supported action',
+        3  => 'Missing argument: "{ERROR}"',
+        4  => 'No {ERROR} found with the argument: "{ERROR2}"',
+        5  => 'Authentication error: "{ERROR}"',
+        6  => '"{ERROR}" is not a valid {ERROR2}',
+        7  => 'PLACEHOLDER',
+        8  => 'PLACEHOLDER',
+        9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
+        10 => 'You do not have permission to use the "{ERROR}" action',
+        11 => '"{ERROR}" is a supported action but there is no code for it yet',
+        12 => '"{ERROR}" is a unknown request method.',
+        13 => '"{ERROR}" is not an installed addon.',
+        14 => '"{ERROR}" is not an author of any resources.',
+        15 => 'Could not find a resource with ID "{ERROR}".',
+        16 => 'Could not find a required model to perform this request: "{ERROR}".',
+        17 => 'The API key has not been changed, make sure you use another API key before using this API.',
+        18 => '"{ERROR} is a unknown permission name, the request was terminated.',
+        19 => 'Could not find a {ERROR} with ID "{ERROR2}".',
+        20 => '{ERROR} not have permissions to view {ERROR2}.',
+        21 => 'The "{ERROR}" argument has to be a number.',
+        22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})".'
+    );
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
 
@@ -572,7 +575,7 @@ class RestAPI {
                 * Returns the addon information depending on the 'value' argument.
                 *
                 * NOTE: Only addon ID's can be used for the 'value' parameter.
-                *       Addon ID's can be found by using the 'getAlerts' action.
+                *       Addon ID's can be found by using the 'getAddons' action.
                 *
                 * EXAMPLE:
                 *   - api.php?action=getAddon&value=PostRating&hash=USERNAME:HASH
@@ -724,6 +727,30 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse(array('avatar' => $user->getAvatar($size)));
+                break;
+            case 'getconversations':
+                /**
+                * Grabs the conversations from the specified user.
+                * 
+                * NOTE: The 'value' argument will only work for the user itself and
+                *       not on others users unless the permission argument for the 
+                *       'getconversations' action is changed (default permission: private).
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getConversations&hash=USERNAME:HASH
+                *   - api.php?action=getConversations&value=USERNAME&hash=USERNAME:HASH
+                *   - api.php?action=getConversations&value=USERNAME&hash=API_KEY
+                */
+                // Init variables.
+                $conditions = array();
+                $this->setLimit(10);
+                $fetch_options = array('limit' => $this->limit, 'join' => XenForo_Model_Conversation::FETCH_FIRST_MESSAGE);
+
+                // Grab the conversations.
+                $conversations = $this->getXenAPI()->getConversations($user, $conditions, $fetch_options);
+
+                // Send the response.
+                $this->sendResponse(array('count' => count($conversations), 'conversations' => $conversations));
                 break;
             case 'getgroup': 
                 /**
@@ -1098,14 +1125,16 @@ class RestAPI {
                 */
                 $latest_user = $this->xenAPI->getLatestUser();
                 $this->sendResponse(array(
-                    'threads'             => $this->xenAPI->getStatsItem('threads'),
-                    'posts'               => $this->xenAPI->getStatsItem('posts'),
-                    'members'             => $this->xenAPI->getStatsItem('users'),
-                    'latest_member'       => array('user_id' => $latest_user->getID(), 'username' => $latest_user->getUsername()),
-                    'registrations_today' => $this->xenAPI->getStatsItem('registrations_today'),
-                    'threads_today'       => $this->xenAPI->getStatsItem('threads_today'),
-                    'posts_today'         => $this->xenAPI->getStatsItem('posts_today'),
-                    'users_online'        => $this->xenAPI->getUsersOnlineCount($this->getUser())
+                    'threads'                => $this->xenAPI->getStatsItem('threads'),
+                    'posts'                  => $this->xenAPI->getStatsItem('posts'),
+                    'conversations'          => $this->xenAPI->getStatsItem('conversations'),
+                    'conversations_messages' => $this->xenAPI->getStatsItem('conversations_messages'),
+                    'members'                => $this->xenAPI->getStatsItem('users'),
+                    'latest_member'          => array('user_id' => $latest_user->getID(), 'username' => $latest_user->getUsername()),
+                    'registrations_today'    => $this->xenAPI->getStatsItem('registrations_today'),
+                    'threads_today'          => $this->xenAPI->getStatsItem('threads_today'),
+                    'posts_today'            => $this->xenAPI->getStatsItem('posts_today'),
+                    'users_online'           => $this->xenAPI->getUsersOnlineCount($this->getUser())
                 ));
                 break;
             case 'getthread':
@@ -1319,6 +1348,9 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($results);
                 break;
+            default:
+                // Action was supported but has not yet been added to the switch statement, throw error.
+                $this->throwError(11, $this->getAction());
         }
     }
     
@@ -1423,6 +1455,15 @@ class XenAPI {
         return new Addon($this->getModels()->getModel('addon')->getAddOnById($addon));
     }
 
+
+    /**
+    * Returns all the conversations of the user.
+    */
+    public function getConversations($user, $conditions = array(), $fetchOptions = array()) {
+        $this->getModels()->checkModel('conversation', XenForo_Model::create('XenForo_Model_Conversation'));
+        return $this->getModels()->getModel('conversation')->getConversationsForUser($user->getID(), $conditions, $fetchOptions);
+    }
+
     /**
     * Returns a list of resources.
     */
@@ -1463,6 +1504,10 @@ class XenAPI {
         switch ($item) {
             case 'users':
                 return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_user');
+            case 'conversations':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_conversation_master');
+            case 'conversations_messages':
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_conversation_message');
             case 'posts':
                 return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post');
             case 'threads':
