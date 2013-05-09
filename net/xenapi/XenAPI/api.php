@@ -75,22 +75,24 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-                             'authenticate' => 'public',
-                             'getactions'   => 'public', 
-                             'getaddon'     => 'administrator',
-                             'getaddons'    => 'administrator',
-                             'getalerts'    => 'private', 
-                             'getavatar'    => 'public', 
-                             'getgroup'     => 'public', 
-                             'getpost'      => 'public',
-                             'getposts'     => 'public',
-                             'getresource'  => 'administrator',
-                             'getresources' => 'administrator',
-                             'getstats'     => 'public',
-                             'getthread'    => 'public',
-                             'getthreads'   => 'public',
-                             'getuser'      => 'authenticated', 
-                             'getusers'     => 'public');
+                             'authenticate'    => 'public',
+                             'getactions'      => 'public', 
+                             'getaddon'        => 'administrator',
+                             'getaddons'       => 'administrator',
+                             'getalerts'       => 'private', 
+                             'getavatar'       => 'public', 
+                             'getgroup'        => 'public', 
+                             'getpost'         => 'public',
+                             'getposts'        => 'public',
+                             'getprofilepost'  => 'authenticated',
+                             'getprofileposts' => 'authenticated',
+                             'getresource'     => 'administrator',
+                             'getresources'    => 'administrator',
+                             'getstats'        => 'public',
+                             'getthread'       => 'public',
+                             'getthreads'      => 'public',
+                             'getuser'         => 'authenticated', 
+                             'getusers'        => 'public');
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
     private $user_actions = array('getalerts', 'getuser', 'getavatar');
@@ -116,7 +118,7 @@ class RestAPI {
                             16 => 'Could not find a required model to perform this request: "{ERROR}".',
                             17 => 'The API key has not been changed, make sure you use another API key before using this API.',
                             18 => '"{ERROR} is a unknown permission name, the request was terminated.',
-                            19 => 'Could not find a thread with ID "{ERROR}".',
+                            19 => 'Could not find a {ERROR} with ID "{ERROR2}".',
                             20 => '{ERROR} not have permissions to view {ERROR2}.',
                             21 => 'The "{ERROR}" argument has to be a number.',
                             22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})".');
@@ -788,17 +790,20 @@ class RestAPI {
                 $post = $this->getXenAPI()->getPost($string, array('join' => XenForo_Model_Post::FETCH_FORUM));
                 if ($post == NULL) {
                      // Could not find the post, throw error.
-                    $this->throwError(19, $string);
-                } else if (!$this->getXenAPI()->canViewPost($this->getUser(), $post)) {
-                    if (!$this->hasAPIKey()) {
-                        // Thread was found but the user is not permitted to view the post.
-                        $this->throwError(20, 'You do', 'this post');
-                    } else if ($this->hasAPIKey() && isset($this->grab_as)) {
-                        // Thread was found but the 'grab_as' user is not permitted to view the post.
+                    $this->throwError(19, 'post', $string);
+                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewPost($this->getUser(), $post)) {
+                    if (isset($this->grab_as)) {
+                        // Post was found but the 'grab_as' user is not permitted to view the post.
                         $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this post');
+                    } else { 
+                        // Post was found but the user is not permitted to view the post.
+                        $this->throwError(20, 'You do', 'this post');
                     }
+                } else if ($this->hasAPIKey() && isset($this->grab_as) && !$this->getXenAPI()->canViewPost($this->getUser(), $post)) {
+                    // Post was found but the 'grab_as' user is not permitted to view the post.
+                    $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this post');
                 } else {
-                     // Thread was found, and the request was permitted.
+                     // Post was found, and the request was permitted.
                     $this->sendResponse($post);
                 }
                 break;
@@ -835,6 +840,7 @@ class RestAPI {
                     }
                     // Add the user ID to the query conditions.
                     $conditions['user_id'] = $user->getID();
+                    unset($user);
                 }
 
                 // Check if request has node id.
@@ -885,6 +891,122 @@ class RestAPI {
 
                 // Send the response.
                 $this->sendResponse(array('count' => count($posts), 'posts' => $posts));
+            case 'getprofilepost':
+                /**
+                * Returns the profile post information depending on the 'value' argument.
+                *
+                * NOTE: Only profile post ID's can be used for the 'value' parameter.
+                *       Profile post ID's can be found by using the 'getProfilePosts' action.
+                *
+                *       The user needs permission to see the profile post if the request is
+                *       using a user hash and not an API key.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getProfilePost&value=820&hash=USERNAME:HASH
+                *   - api.php?action=getProfilePost&value=820&hash=API_KEY
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' argument has not been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' argument is set but empty.
+                    $this->throwError(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the profile post from XenForo.
+                $profile_post = $this->getXenAPI()->getProfilePost($string);
+                if ($profile_post == NULL) {
+                     // Could not find the profile post, throw error.
+                    $this->throwError(19, 'profile post', $string);
+                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewProfilePost($this->getUser(), $profile_post)) {
+                    if (isset($this->grab_as)) {
+                        // Thread was found but the 'grab_as' user is not permitted to view the thread.
+                        $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this profile post');
+                    } else { 
+                        // Thread was found but the user is not permitted to view the profile post.
+                        $this->throwError(20, 'You do', 'this profile post');
+                    }
+                } else if ($this->hasAPIKey() && isset($this->grab_as) && !$this->getXenAPI()->canViewProfilePost($this->getUser(), $profile_post)) {
+                    // Thread was found but the 'grab_as' user is not permitted to view the profile post.
+                    $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this profile post');
+                } else {
+                     // Post was found, and the request was permitted.
+                    $this->sendResponse($profile_post);
+                }
+                break;
+            case 'getprofileposts':
+                /**
+                * Returns a list of profile posts.
+                *
+                * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getProfilePosts&hash=USERNAME:HASH
+                *   - api.php?action=getProfilePosts&hash=API_KEY
+                *   - api.php?action=getProfilePosts&author=Contex&hash=USERNAME:HASH
+                *   - api.php?action=getProfilePosts&author=1&hash=API_KEY
+                */
+                // Init variables.
+                $conditions = array();
+                $this->setLimit(10);
+                $fetch_options = array('limit' => $this->limit);
+
+                // Check if request has author.
+                if ($this->hasRequest('author')) {
+                    if (!$this->getRequest('author')) {
+                        // Throw error if the 'author' argument is set but empty.
+                        $this->throwError(1, 'author');
+                        break;
+                    }
+                    // Grab the user object of the author.
+                    $user = $this->xenAPI->getUser($this->getRequest('author'));
+                    if (!$user->isRegistered()) {
+                        // Throw error if the 'author' user is not registered.
+                        $this->throwError(4, 'user', $this->getRequest('author'));
+                        break;
+                    }
+                    // Add the user ID to the query conditions.
+                    $conditions['author_id'] = $user->getID();
+                    unset($user);
+                }
+
+                // Check if request has profile user.
+                if ($this->hasRequest('profile')) {
+                    if (!$this->getRequest('profile')) {
+                        // Throw error if the 'profile' argument is set but empty.
+                        $this->throwError(1, 'profile');
+                        break;
+                    }
+                    // Grab the user object of the profile.
+                    $user = $this->xenAPI->getUser($this->getRequest('profile'));
+                    if (!$user->isRegistered()) {
+                        // Throw error if the 'author' user is not registered.
+                        $this->throwError(4, 'user', $this->getRequest('profile'));
+                        break;
+                    }
+                    // Add the user ID to the query conditions.
+                    $conditions['profile_id'] = $user->getID();
+                    unset($user);
+                }
+
+                // Check if the order by argument is set.
+                $order_by_field = $this->checkOrderBy(array('profile_post_id', 'profile_user_id', 'user_id', 'username', 'post_date', 
+                                                            'attach_count', 'likes', 'comment_count', 'first_comment_date', 
+                                                            'last_comment_date'));
+
+                // Add the order by options to the fetch options.
+                if ($this->hasRequest('order_by')) {
+                    $fetch_options['order']          = $order_by_field;
+                    $fetch_options['orderDirection'] = $this->order;
+                }
+
+                // Get the profile posts.
+                $profile_posts = $this->getXenAPI()->getProfilePosts($conditions, $fetch_options, $this->getUser());
+
+                // Send the response.
+                $this->sendResponse(array('count' => count($profile_posts), 'profile_posts' => $profile_posts));
             case 'getresource': 
                 /**
                 * Returns the resource information depending on the 'value' argument.
@@ -1014,15 +1136,18 @@ class RestAPI {
                 $thread = $this->getXenAPI()->getThread($string);
                 if ($thread == NULL) {
                      // Could not find the thread, throw error.
-                    $this->throwError(19, $string);
-                } else if (!$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
-                    if (!$this->hasAPIKey()) {
-                        // Thread was found but the user is not permitted to view the thread.
-                        $this->throwError(20, 'you do', 'this thread');
-                    } else if ($this->hasAPIKey() && isset($this->grab_as)) {
+                    $this->throwError(19, 'thread', $string);
+                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
+                    if (isset($this->grab_as)) {
                         // Thread was found but the 'grab_as' user is not permitted to view the thread.
                         $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this thread');
+                    } else { 
+                        // Thread was found but the user is not permitted to view the thread.
+                        $this->throwError(20, 'You do', 'this thread');
                     }
+                } else if ($this->hasAPIKey() && isset($this->grab_as) && !$this->getXenAPI()->canViewThread($this->getUser(), $thread)) {
+                    // Thread was found but the 'grab_as' user is not permitted to view the thread.
+                    $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this thread');
                 } else {
                      // Thread was found, and the request was permitted.
                     $this->sendResponse($thread);
@@ -1061,6 +1186,7 @@ class RestAPI {
                     }
                     // Add the user ID to the query conditions.
                     $conditions['user_id'] = $user->getID();
+                    unset($user);
                 }
 
                 // Check if request has author.
@@ -1355,13 +1481,38 @@ class XenAPI {
     /**
     * TODO
     */
+    public function checkUserPermissions(&$user) {
+        if ($user != NULL) {
+            $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+
+            if (empty($user->data['global_permission_cache'])) {
+                // Check if the user data has permissions cache set, grab it if not.
+                $user = $this->getUser($user->getID(), TRUE);
+            }
+
+            if (empty($user->data['permissions'])) {
+                // Check if the user data has the permissions set, set it if not.
+                $user->data['permissions'] = XenForo_Permission::unserializePermissions($user->data['global_permission_cache']);
+                // Unset the permissions serialized cache as we don't need it anymore.
+                unset($user->data['global_permission_cache']);
+            }
+        }
+    }
+
+    /**
+    * TODO
+    */
     public function getUsersOnlineCount($user = NULL) {
         $this->getModels()->checkModel('session', XenForo_Model::create('XenForo_Model_Session'));
         if ($user != NULL) {
-            // USer parameter is not null, make sure to follow privacy of the users.
+            // User parameter is not null, make sure to follow privacy of the users.
             $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+
+            // Check user permissions.
+            $this->checkUserPermissions($user);
+
             // Check if the user can bypass user privacy.
-            $bypass = $this->getModels()->getModel('user')->canBypassUserPrivacy($null, $user);
+            $bypass = $this->getModels()->getModel('user')->canBypassUserPrivacy($null, $user->getData());
             $conditions = array(
                 'cutOff' => array('>', $this->getModels()->getModel('session')->getOnlineStatusTimeout()),
                 'getInvisible' => $bypass,
@@ -1399,7 +1550,12 @@ class XenAPI {
     */
     public function getPost($post_id, $fetchOptions = array()) {
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
-        return $this->getModels()->getModel('post')->getPostById($post_id, $fetchOptions);
+        $post = $this->getModels()->getModel('post')->getPostById($post_id, $fetchOptions);
+        if (!empty($fetchOptions['join'])) {
+            // Unset the thread values.
+            Post::stripThreadValues($post);
+        }
+        return $post;
     }
 
     /**
@@ -1421,7 +1577,6 @@ class XenAPI {
             $fetchOptions = array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id']));
         }
         // Prepare query conditions.
-        $forceIndex = (!empty($fetchOptions['forceThreadIndex']) ? 'FORCE INDEX (' . $fetchOptions['forceThreadIndex'] . ')' : '');
         $whereConditions = Post::preparePostConditions($this->getModels()->getModel('database'), $this->getModels()->getModel('post'), $conditions);
         $sqlClauses = $this->getModels()->getModel('post')->preparePostJoinOptions($fetchOptions);
         $limitOptions = $this->getModels()->getModel('post')->prepareLimitFetchOptions($fetchOptions);
@@ -1460,8 +1615,7 @@ class XenAPI {
             '
                 SELECT post.*
                     ' . $sqlClauses['selectFields'] . '
-                FROM xf_post AS post ' . $forceIndex . '
-                ' . $sqlClauses['joinTables'] . '
+                FROM xf_post AS post ' . $sqlClauses['joinTables'] . '
                 WHERE ' . $whereConditions . '
                 ' . $sqlClauses['orderClause'] . '
             ', $limitOptions['limit'], $limitOptions['offset']
@@ -1483,22 +1637,7 @@ class XenAPI {
 
             if (isset($fetchOptions['join'])) {
                 // Unset some not needed thread values.
-                unset($post_list[$key]['reply_count']);
-                unset($post_list[$key]['view_count']);
-                unset($post_list[$key]['sticky']);
-                unset($post_list[$key]['discussion_state']);
-                unset($post_list[$key]['discussion_open']);
-                unset($post_list[$key]['discussion_type']);
-                unset($post_list[$key]['first_post_id']);
-                unset($post_list[$key]['first_post_likes']);
-                unset($post_list[$key]['last_post_date']);
-                unset($post_list[$key]['last_post_id']);
-                unset($post_list[$key]['last_post_user_id']);
-                unset($post_list[$key]['last_post_username']);
-                unset($post_list[$key]['prefix_id']);
-                unset($post_list[$key]['thread_user_id']);
-                unset($post_list[$key]['thread_username']);
-                unset($post_list[$key]['thread_post_date']);
+                Post::stripThreadValues($post_list[$key]);
             }
         }
         return $post_list;
@@ -1522,6 +1661,118 @@ class XenAPI {
         }
         return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData());
     }
+
+    /**
+    * Returns the Post array of the $post_id parameter.
+    */
+    public function getProfilePost($profile_post_id, $fetchOptions = array()) {
+        $this->getModels()->checkModel('profile_post', XenForo_Model::create('XenForo_Model_ProfilePost'));
+        return $this->getModels()->getModel('profile_post')->getProfilePostById($profile_post_id, $fetchOptions);
+    }
+
+     /**
+    * Returns a list of profile posts.
+    */
+    public function getProfilePosts($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
+        $this->getModels()->checkModel('profile_post', XenForo_Model::create('XenForo_Model_ProfilePost'));
+        if ($user != NULL) {
+            // User is set, we need to include permissions.
+            $this->checkUserPermissions($user);
+        }
+
+        // Default the sql condition.
+        $sqlConditions = array();
+
+        if (count($conditions) > 0) {
+            // We need to make our own check for these conditions as XenForo's functions doesn't fully support what we want.
+
+            // Check if the author id is set.
+            if (!empty($conditions['author_id'])) {
+                $sqlConditions[] = "profile_post.user_id = " . $this->getModels()->getModel('database')->quote($conditions['author_id']);
+            }
+
+            // Check if the profile id is set.
+            if (!empty($conditions['profile_id'])) {
+                $sqlConditions[] = "profile_post.profile_user_id = " . $this->getModels()->getModel('database')->quote($conditions['profile_id']);
+            }
+        }
+
+        // Use the model function to get conditions for clause from the sql conditions.
+        $whereConditions = $this->getModels()->getModel('profile_post')->getConditionsForClause($sqlConditions);
+
+        // Prepare query conditions.
+        $sqlClauses = $this->getModels()->getModel('profile_post')->prepareProfilePostFetchOptions($fetchOptions);
+        $limitOptions = $this->getModels()->getModel('profile_post')->prepareLimitFetchOptions($fetchOptions);
+
+        // Since the profile post model of XenForo does not have order by implemented, we have to do it ourselves.
+        if (!empty($fetchOptions['order'])) {
+            $orderBySecondary = '';
+            switch ($fetchOptions['order']) {
+                case 'profile_post_id':
+                case 'profile_user_id':
+                case 'user_id':
+                case 'username':
+                case 'attach_count':
+                case 'likes':
+                case 'comment_count':
+                case 'first_comment_date':
+                case 'last_comment_date':
+                    $orderBy = 'profile_post.' . $fetchOptions['order'];
+                    break;
+                case 'post_date':
+                default:
+                    $orderBy = 'profile_post.post_date';
+            }
+            // Check if order direction is set.
+            if (!isset($fetchOptions['orderDirection']) || $fetchOptions['orderDirection'] == 'desc') {
+                $orderBy .= ' DESC';
+            } else {
+                $orderBy .= ' ASC';
+            }
+            $orderBy .= $orderBySecondary;
+        }
+        $sqlClauses['orderClause'] = (isset($orderBy) ? "ORDER BY $orderBy" : '');
+
+        // Execute the query and get the result.
+        $profile_post_list = $this->getModels()->getModel('profile_post')->fetchAllKeyed($this->getModels()->getModel('profile_post')->limitQueryResults(
+            '
+                SELECT profile_post.*
+                    ' . $sqlClauses['selectFields'] . '
+                FROM xf_profile_post AS profile_post ' . $sqlClauses['joinTables'] . '
+                WHERE ' . $whereConditions . '
+                ' . $sqlClauses['orderClause'] . '
+            ', $limitOptions['limit'], $limitOptions['offset']
+        ), 'profile_post_id');
+
+        if ($user != NULL) {
+            // Loop through the profile posts to check permissions
+            foreach ($profile_post_list as $key => $profile_post) {
+                // Check if the user has permissions to view the profile post.
+                if (!$this->getModels()->getModel('profile_post')->canViewProfilePost($profile_post, array(), $null, $user->getData())) {
+                    // User does not have permission to view this profile post, unset it and continue the loop.
+                    unset($profile_post_list[$key]);
+                }
+            }
+        }
+
+        // Return the profile post list.
+        return $profile_post_list;
+    }
+
+    /**
+    * Check if user has permissions to view post.
+    */
+    public function canViewProfilePost($user, $profile_post, $permissions = NULL) {
+        // Check if the profile post model has initialized.
+        $this->getModels()->checkModel('profile_post', XenForo_Model::create('XenForo_Model_ProfilePost'));
+
+        // Check if the user object has the permissions data.
+        $this->checkUserPermissions($user);
+
+        // Return if the user has permissions to view the profile post.
+        return $user != NULL && $this->getModels()->getModel('profile_post')->canViewProfilePost($profile_post, array(), $null, $user->getData());
+    }
+
 
 
     /**
@@ -1583,15 +1834,15 @@ class XenAPI {
             return FALSE;
         } else if (is_numeric($input)) {
             // $input is a number, grab the user by an ID.
-            $user = new User($this->models, $this->models->getUserModel()->getUserById($input));
+            $user = new User($this->models, $this->models->getUserModel()->getUserById($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
             if (!$user->isRegistered()) {
                 // The user ID was not found, grabbing the user by the username instead.
-                return new User($this->models, $this->models->getUserModel()->getUserByName($input));
+                return new User($this->models, $this->models->getUserModel()->getUserByName($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
             }
             return $user;
         } else if ($this->models->getUserModel()->couldBeEmail($input)) {
             // $input is an e-mail, return the user of the e-mail.
-            return new User($this->models, $this->models->getUserModel()->getUserByEmail($input));
+            return new User($this->models, $this->models->getUserModel()->getUserByEmail($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
         } else {
             // $input is an username, return the user of the username.
             return new User($this->models, $this->models->getUserModel()->getUserByName($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
@@ -1707,6 +1958,24 @@ class Models {
 } 
 
 class Post {
+    public static function stripThreadValues(&$post) {
+        unset($post['reply_count']);
+        unset($post['view_count']);
+        unset($post['sticky']);
+        unset($post['discussion_state']);
+        unset($post['discussion_open']);
+        unset($post['discussion_type']);
+        unset($post['first_post_id']);
+        unset($post['first_post_likes']);
+        unset($post['last_post_date']);
+        unset($post['last_post_id']);
+        unset($post['last_post_user_id']);
+        unset($post['last_post_username']);
+        unset($post['prefix_id']);
+        unset($post['thread_user_id']);
+        unset($post['thread_username']);
+        unset($post['thread_post_date']);
+    }
     public static function preparePostConditions($db, $model, array $conditions) {
         $sqlConditions = array();
 
