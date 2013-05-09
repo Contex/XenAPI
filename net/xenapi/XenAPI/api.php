@@ -204,20 +204,8 @@ class RestAPI {
             // Order is not set, default to descending (10-0).
             $this->order = 'desc';
         }
-        // Check if limit argument is set.
-        if ($this->hasRequest('limit')) {
-            if (!$this->getRequest('limit') && (is_numeric($this->getRequest('limit')) && $this->getRequest('limit') != 0)) {
-                // Throw error if the 'limit' argument is set but empty.
-                $this->throwError(1, 'limit');
-            } else if (!is_numeric($this->getRequest('limit'))) {
-                // Throw error if the 'limit' argument is set but not a number.
-                $this->throwError(21, 'limit');
-            }
-            $this->limit = $this->getRequest('limit');
-        } else {
-            // Limit is not set, default to 100.
-            $this->limit = 100;
-        }
+        // Set the limit.
+        $this->setLimit(100);
     }
 
     /**
@@ -246,6 +234,26 @@ class RestAPI {
     */
     public function getHash() {
         return $this->hash;
+    }
+
+    /**
+    * TODO
+    */
+    public function setLimit($default) {
+        // Check if limit argument is set.
+        if ($this->hasRequest('limit')) {
+            if (!$this->getRequest('limit') && (is_numeric($this->getRequest('limit')) && $this->getRequest('limit') != 0)) {
+                // Throw error if the 'limit' argument is set but empty.
+                $this->throwError(1, 'limit');
+            } else if (!is_numeric($this->getRequest('limit'))) {
+                // Throw error if the 'limit' argument is set but not a number.
+                $this->throwError(21, 'limit');
+            }
+            $this->limit = $this->getRequest('limit');
+        } else {
+            // Limit is not set, default to $default variable.
+            $this->limit = $default;
+        }
     }
     
     /**
@@ -794,6 +802,89 @@ class RestAPI {
                     $this->sendResponse($post);
                 }
                 break;
+            case 'getposts':
+                /**
+                * Returns a list of posts.
+                *
+                * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getPosts&hash=USERNAME:HASH
+                *   - api.php?action=getPosts&hash=API_KEY
+                *   - api.php?action=getPosts&author=Contex&hash=USERNAME:HASH
+                *   - api.php?action=getPosts&author=1&hash=API_KEY
+                */
+                // Init variables.
+                $conditions = array();
+                $this->setLimit(10);
+                $fetch_options = array('limit' => $this->limit);
+
+                // Check if request has author.
+                if ($this->hasRequest('author')) {
+                    if (!$this->getRequest('author')) {
+                        // Throw error if the 'author' argument is set but empty.
+                        $this->throwError(1, 'author');
+                        break;
+                    }
+                    // Grab the user object of the author.
+                    $user = $this->xenAPI->getUser($this->getRequest('author'));
+                    if (!$user->isRegistered()) {
+                        // Throw error if the 'author' user is not registered.
+                        $this->throwError(4, 'user', $this->getRequest('author'));
+                        break;
+                    }
+                    // Add the user ID to the query conditions.
+                    $conditions['user_id'] = $user->getID();
+                }
+
+                // Check if request has node id.
+                if ($this->hasRequest('node_id')) {
+                    if (!$this->getRequest('node_id') && (is_numeric($this->getRequest('node_id')) && $this->getRequest('node_id') != 0)) {
+                        // Throw error if the 'node_id' argument is set but empty.
+                        $this->throwError(1, 'node_id');
+                    } else if (!is_numeric($this->getRequest('node_id'))) {
+                        // Throw error if the 'node_id' argument is set but not a number.
+                        $this->throwError(21, 'node_id');
+                    }
+                    if (!$this->xenAPI->getNode($this->getRequest('node_id'))) {
+                        // Could not find any nodes, throw error.
+                        $this->throwError(4, 'node', $this->getRequest('node_id'));
+                    }
+                    // Add the node ID to the query conditions.
+                    $conditions['node_id'] = $this->getRequest('node_id');
+                }
+
+                // Check if request has thread id.
+                if ($this->hasRequest('thread_id')) {
+                    if (!$this->getRequest('thread_id') && (is_numeric($this->getRequest('thread_id')) && $this->getRequest('thread_id') != 0)) {
+                        // Throw error if the 'thread_id' argument is set but empty.
+                        $this->throwError(1, 'thread_id');
+                    } else if (!is_numeric($this->getRequest('thread_id'))) {
+                        // Throw error if the 'thread_id' argument is set but not a number.
+                        $this->throwError(21, 'thread_id');
+                    }
+                    if (!$this->xenAPI->getThread($this->getRequest('thread_id'))) {
+                        // Could not find any threads, throw error.
+                        $this->throwError(4, 'thread_id', $this->getRequest('thread_id'));
+                    }
+                    // Add the node ID to the query conditions.
+                    $conditions['thread_id'] = $this->getRequest('thread_id');
+                }
+
+                // Check if the order by argument is set.
+                $order_by_field = $this->checkOrderBy(array('post_id', 'thread_id', 'user_id', 'username', 'post_date', 'attach_count', 'likes', 'node_id'));
+
+                // Add the order by options to the fetch options.
+                if ($this->hasRequest('order_by')) {
+                    $fetch_options['order']          = $order_by_field;
+                    $fetch_options['orderDirection'] = $this->order;
+                }
+
+                // Get the posts.
+                $posts = $this->getXenAPI()->getPosts($conditions, $fetch_options, $this->getUser());
+
+                // Send the response.
+                $this->sendResponse(array('count' => count($posts), 'posts' => $posts));
             case 'getresource': 
                 /**
                 * Returns the resource information depending on the 'value' argument.
@@ -951,7 +1042,7 @@ class RestAPI {
                 */
                 // Init variables.
                 $conditions = array();
-                $this->limit = 10;
+                $this->setLimit(10);
                 $fetch_options = array('limit' => $this->limit);
 
                 // Check if request has author.
@@ -1306,32 +1397,111 @@ class XenAPI {
     /**
     * Returns the Post array of the $post_id parameter.
     */
-    public function getPost($post_id, $fetch_options = array()) {
+    public function getPost($post_id, $fetchOptions = array()) {
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
-        return $this->getModels()->getModel('post')->getPostById($post_id, $fetch_options);
+        return $this->getModels()->getModel('post')->getPostById($post_id, $fetchOptions);
     }
 
     /**
     * Returns a list of posts.
     */
     public function getPosts($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
-        #TODO
-        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
-        if ($user == NULL) {
-            $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
-            return $thread_list;
+        if (!empty($conditions['node_id']) || (!empty($fetchOptions['order']) && strtolower($fetchOptions['order']) == 'node_id')) {
+            // We need to grab the thread info to get the node_id.
+            $fetchOptions = array_merge($fetchOptions, array('join' => XenForo_Model_Post::FETCH_THREAD));
         }
-        $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
-        // Loop through the threads to check if the user has permissions to view the thread.
-        foreach ($thread_list as $key => $thread) {
-            $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
-            if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
-                // User does not have permission to view this thread, unset it and continue the loop.
-                unset($thread_list[$key]);
+        $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+        if ($user != NULL) {
+            // User is set, we need to include permissions.
+            if (!isset($fetchOptions['join'])) {
+                // WE need to grab the thread to get the node permissions.
+                $fetchOptions = array_merge($fetchOptions, array('join' => XenForo_Model_Post::FETCH_THREAD));
             }
-            unset($thread_list[$key]['node_permission_cache']);
+            // User is set, we therefore have to grab the permissions to check if the user is allowed to view the post.
+            $fetchOptions = array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id']));
         }
-        return $thread_list;
+        // Prepare query conditions.
+        $forceIndex = (!empty($fetchOptions['forceThreadIndex']) ? 'FORCE INDEX (' . $fetchOptions['forceThreadIndex'] . ')' : '');
+        $whereConditions = Post::preparePostConditions($this->getModels()->getModel('database'), $this->getModels()->getModel('post'), $conditions);
+        $sqlClauses = $this->getModels()->getModel('post')->preparePostJoinOptions($fetchOptions);
+        $limitOptions = $this->getModels()->getModel('post')->prepareLimitFetchOptions($fetchOptions);
+
+        // Since the Post model of XenForo does not have order by implemented, we have to do it ourselves.
+        if (!empty($fetchOptions['order'])) {
+            $orderBySecondary = '';
+            switch ($fetchOptions['order']) {
+                case 'post_id':
+                case 'thread_id':
+                case 'user_id':
+                case 'username':
+                case 'attach_count':
+                case 'likes':
+                    $orderBy = 'post.' . $fetchOptions['order'];
+                    break;
+                case 'node_id':
+                    $orderBy = 'thread.' . $fetchOptions['order'];
+                    break;
+                case 'post_date':
+                default:
+                    $orderBy = 'post.post_date';
+            }
+            // Check if order direction is set.
+            if (!isset($fetchOptions['orderDirection']) || $fetchOptions['orderDirection'] == 'desc') {
+                $orderBy .= ' DESC';
+            } else {
+                $orderBy .= ' ASC';
+            }
+            $orderBy .= $orderBySecondary;
+        }
+        $sqlClauses['orderClause'] = (isset($orderBy) ? "ORDER BY $orderBy" : '');
+
+        // Execute the query and get the result.
+        $post_list = $this->getModels()->getModel('post')->fetchAllKeyed($this->getModels()->getModel('post')->limitQueryResults(
+            '
+                SELECT post.*
+                    ' . $sqlClauses['selectFields'] . '
+                FROM xf_post AS post ' . $forceIndex . '
+                ' . $sqlClauses['joinTables'] . '
+                WHERE ' . $whereConditions . '
+                ' . $sqlClauses['orderClause'] . '
+            ', $limitOptions['limit'], $limitOptions['offset']
+        ), 'post_id');
+
+        // Loop through the posts to unset some values that are not needed.
+        foreach ($post_list as $key => $post) {
+            if ($user != NULL) {
+                // Check if the user has permissions to view the post.
+                $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
+                if (!$this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData())) {
+                    // User does not have permission to view this post, unset it and continue the loop.
+                    unset($post_list[$key]);
+                    continue;
+                }
+                // Unset the permissions values.
+                unset($post_list[$key]['node_permission_cache']);
+            }
+
+            if (isset($fetchOptions['join'])) {
+                // Unset some not needed thread values.
+                unset($post_list[$key]['reply_count']);
+                unset($post_list[$key]['view_count']);
+                unset($post_list[$key]['sticky']);
+                unset($post_list[$key]['discussion_state']);
+                unset($post_list[$key]['discussion_open']);
+                unset($post_list[$key]['discussion_type']);
+                unset($post_list[$key]['first_post_id']);
+                unset($post_list[$key]['first_post_likes']);
+                unset($post_list[$key]['last_post_date']);
+                unset($post_list[$key]['last_post_id']);
+                unset($post_list[$key]['last_post_user_id']);
+                unset($post_list[$key]['last_post_username']);
+                unset($post_list[$key]['prefix_id']);
+                unset($post_list[$key]['thread_user_id']);
+                unset($post_list[$key]['thread_username']);
+                unset($post_list[$key]['thread_post_date']);
+            }
+        }
+        return $post_list;
     }
 
     /**
@@ -1379,6 +1549,7 @@ class XenAPI {
                 // User does not have permission to view this thread, unset it and continue the loop.
                 unset($thread_list[$key]);
             }
+            // Unset the permissions values.
             unset($thread_list[$key]['node_permission_cache']);
         }
         return $thread_list;
@@ -1534,6 +1705,54 @@ class Models {
         return $this->getModel('database');
     }
 } 
+
+class Post {
+    public static function preparePostConditions($db, $model, array $conditions) {
+        $sqlConditions = array();
+
+        if (!empty($conditions['forum_id']) && empty($conditions['node_id'])) {
+            $conditions['node_id'] = $conditions['forum_id'];
+        }
+
+        if (!empty($conditions['node_id'])) {
+            if (is_array($conditions['node_id'])) {
+                $sqlConditions[] = 'thread.node_id IN (' . $db->quote($conditions['node_id']) . ')';
+            } else {
+                $sqlConditions[] = 'thread.node_id = ' . $db->quote($conditions['node_id']);
+            }
+        }
+
+        if (!empty($conditions['thread_id'])) {
+            if (is_array($conditions['thread_id'])) {
+                $sqlConditions[] = 'post.thread_id IN (' . $db->quote($conditions['thread_id']) . ')';
+            } else {
+                $sqlConditions[] = 'post.thread_id = ' . $db->quote($conditions['thread_id']);
+            }
+        }
+
+        if (!empty($conditions['prefix_id'])) {
+            if (is_array($conditions['prefix_id'])) {
+                $sqlConditions[] = 'thread.prefix_id IN (' . $db->quote($conditions['prefix_id']) . ')';
+            } else {
+                $sqlConditions[] = 'thread.prefix_id = ' . $db->quote($conditions['prefix_id']);
+            }
+        }
+
+        if (!empty($conditions['post_date']) && is_array($conditions['post_date'])) {
+            list($operator, $cutOff) = $conditions['post_date'];
+
+            $model->assertValidCutOffOperator($operator);
+            $sqlConditions[] = "post.post_date $operator " . $db->quote($cutOff);
+        }
+
+        // thread starter
+        if (isset($conditions['user_id'])) {
+            $sqlConditions[] = 'post.user_id = ' . $db->quote($conditions['user_id']);
+        }
+
+        return $model->getConditionsForClause($sqlConditions);
+    }
+}
 
 /**
 * This class contains all the functions and all the relevant data of a XenForo resource.
