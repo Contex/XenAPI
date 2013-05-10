@@ -52,7 +52,9 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const version = '1.3.dev';
+    const VERSION = '1.3.dev';
+    const GENERAL_ERROR = 0x01;
+    const REGISTRATION_ERROR = 0x02;
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -70,6 +72,7 @@ class RestAPI {
     *   - private:       User is only allowed to use the action on himself/herself. 
     *                    Example: If user tries to use 'getAlerts' with a 'value' argument, 
     *                              an error will be thrown.
+    *   - api_key:       An API key is required to perform this action.
     *
     * NOTE: Permissions are ignored when the API key is used as a hash, permissions are only
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
@@ -93,14 +96,15 @@ class RestAPI {
         'getthread'        => 'public',
         'getthreads'       => 'public',
         'getuser'          => 'authenticated', 
-        'getusers'         => 'public'
+        'getusers'         => 'public',
+        'register'         => 'api_key'
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
     private $user_actions = array('getalerts', 'getavatar', 'getconversations', 'getuser');
     
-    // List of errors, this is where the 'throwErrorF' function gets the messages from.
-    private $errors = array(
+    // List of general errors, this is where the 'throwError' function gets the messages from.
+    private $general_errors = array(
         0  => 'Unknown error', 
         1  => 'Argument: "{ERROR}", is empty/missing a value',
         2  => '"{ERROR}", is not a supported action',
@@ -108,22 +112,48 @@ class RestAPI {
         4  => 'No {ERROR} found with the argument: "{ERROR2}"',
         5  => 'Authentication error: "{ERROR}"',
         6  => '"{ERROR}" is not a valid {ERROR2}',
-        7  => 'PLACEHOLDER',
+        7  => 'Something went wrong when "{ERROR}": "{ERROR2}"',
         8  => 'PLACEHOLDER',
         9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
         10 => 'You do not have permission to use the "{ERROR}" action',
         11 => '"{ERROR}" is a supported action but there is no code for it yet',
-        12 => '"{ERROR}" is a unknown request method.',
-        13 => '"{ERROR}" is not an installed addon.',
-        14 => '"{ERROR}" is not an author of any resources.',
-        15 => 'Could not find a resource with ID "{ERROR}".',
-        16 => 'Could not find a required model to perform this request: "{ERROR}".',
-        17 => 'The API key has not been changed, make sure you use another API key before using this API.',
+        12 => '"{ERROR}" is a unknown request method',
+        13 => '"{ERROR}" is not an installed addon',
+        14 => '"{ERROR}" is not an author of any resources',
+        15 => 'Could not find a resource with ID "{ERROR}"',
+        16 => 'Could not find a required model to perform this request: "{ERROR}"',
+        17 => 'The API key has not been changed, make sure you use another API key before using this API',
         18 => '"{ERROR} is a unknown permission name, the request was terminated.',
-        19 => 'Could not find a {ERROR} with ID "{ERROR2}".',
-        20 => '{ERROR} not have permissions to view {ERROR2}.',
-        21 => 'The "{ERROR}" argument has to be a number.',
-        22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})".'
+        19 => 'Could not find a {ERROR} with ID "{ERROR2}"',
+        20 => '{ERROR} not have permissions to view {ERROR2}',
+        21 => 'The "{ERROR}" argument has to be a number',
+        22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})"'
+    );
+
+    // Specific errors related to registration.
+    private $registration_errors = array(
+        0  => 'Unknown registration error',
+        1  => 'Field was not recognised',
+        10 => 'Missing required registration fields',
+        11 => 'Password invalid',
+        12 => 'Name length is too short',
+        13 => 'Name length is too long',
+        14 => 'Name contains disallowed words',
+        15 => 'Name does not follow the required format',
+        16 => 'Name contains censored words',
+        17 => 'Name contains CTRL characters',
+        18 => 'Name contains comma',
+        19 => 'Name resembles an email',
+        20 => 'User already exists',
+        21 => 'Invalid email',
+        22 => 'Email already used',
+        23 => 'Email banned by administrator',
+        24 => 'Invalid timezone',
+        25 => 'Custom title contains censored words',
+        26 => 'Custom title contains disallowed words',
+        27 => 'Invalid date of birth',
+        28 => 'Cannot delete your own account',
+        29 => 'Field contained an invalid value'
     );
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
@@ -321,8 +351,10 @@ class RestAPI {
                     }
                     // The value argument is not, request is permitted, return TRUE.
                     return TRUE;
+                case 'api_key':
+                    return $this->hasAPIKey();
                 default:
-                    $this->throwError(17, $permission);
+                    $this->throwError(10, $this->getAction());
                     return FALSE;
             }
         }
@@ -449,26 +481,60 @@ class RestAPI {
     /**
     * Gets the error message and replaces {ERROR} with the $extra parameter.
     */
-    public function getError($error, $extra = NULL, $extra2 = NULL) {
-        if (array_key_exists($error, $this->errors)) {
-            $error_string = $this->errors[$error];
-            if ($extra != NULL) {
-                $error_string = str_replace('{ERROR}', $extra, $error_string);
-            } 
-            if ($extra2 != NULL) {
-                $error_string = str_replace('{ERROR2}', $extra2, $error_string);
-            }
-            return $error_string;
-        } else {
-            return $this->errors[0];
+    public function getError($error, $extra = NULL, $extra2 = NULL, $error_type = self::GENERAL_ERROR) {
+        if ($error_type == NULL) {
+            $error_type = self::GENERAL_ERROR;
         }
+        if ($error_type & self::GENERAL_ERROR) {
+            if (array_key_exists($error, $this->general_errors)) {
+                $error_string = $this->general_errors[$error];
+            } else {
+                $error_string = $this->general_errors[0];
+                $error = 0;
+            }
+        } else if ($error_type & self::REGISTRATION_ERROR) {
+            if (array_key_exists($error, $this->registration_errors)) {
+                $error_string = $this->registration_errors[$error];
+            } else {
+                $error_string = $this->registration_errors[0];
+                $error = 0;
+            }
+        }
+        if ($extra != NULL) {
+            $error_string = str_replace('{ERROR}', $extra, $error_string);
+        } 
+        if ($extra2 != NULL) {
+            $error_string = str_replace('{ERROR2}', $extra2, $error_string);
+        }
+        return array('id' => $error, 'message' => $error_string);
     }
     
     /**
     * Throw the error message.
     */
     public function throwError($error, $extra = NULL, $extra2 = NULL) {
-        $this->sendResponse(array('error' => $error, 'message' => $this->getError($error, $extra, $extra2)));
+        if ($error & self::REGISTRATION_ERROR) {
+            $registration_error = $this->getError($extra['error_id'], NULL, NULL, self::REGISTRATION_ERROR); #TODO
+            $general_error = $this->getError(7, 'registering user', $registration_error['message']);
+            $error_response = array(
+                'error' => $general_error['id'], 
+                'message' => $general_error['message'], 
+                'registration_error_id' => $registration_error['id'],
+                'registration_error_field' => $extra['error_field'],
+                'registration_error_key' => $extra['error_key'],
+                'registration_error_phrase' => $extra['error_phrase']
+            );
+        } else {
+            if (is_array($extra)) {
+                $extra = implode(', ', $extra);
+            }
+            if (is_array($extra2)) {
+                $extra2 = implode(', ', $extra2);
+            }
+            $error = $this->getError($error, $extra, $extra2, $error_type);
+            $error_response = array('error' => $error['id'], 'message' => $error['message']);
+        }
+        $this->sendResponse($error_response);
     }
     
     /**
@@ -1348,10 +1414,259 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($results);
                 break;
+            case 'register':
+                /**
+                * Registers a user.
+                *
+                * EXAMPLE:
+                *   - api.php?action=register&value=Contex
+                *   - api.php?action=register&value=Cont*
+                *   - api.php?action=register&value=C*
+                */
+                // Init user array.
+                $user_data = array();
+
+                if (!$this->hasRequest('username')) {
+                    // The 'username' argument has not been set, throw error.
+                    $this->throwError(3, 'username');
+                } else if (!$this->getRequest('username')) {
+                    // Throw error if the 'username' argument is set but empty.
+                    $this->throwError(1, 'username');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['username'] = $this->getRequest('username');
+
+                if (!$this->hasRequest('password')) {
+                    // The 'password' argument has not been set, throw error.
+                    $this->throwError(3, 'password');
+                } else if (!$this->getRequest('password')) {
+                    // Throw error if the 'password' argument is set but empty.
+                    $this->throwError(1, 'password');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['password'] = $this->getRequest('password');
+
+                if (!$this->hasRequest('email')) {
+                    // The 'email' argument has not been set, throw error.
+                    $this->throwError(3, 'email');
+                } else if (!$this->getRequest('email')) {
+                    // Throw error if the 'email' argument is set but empty.
+                    $this->throwError(1, 'email');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['email'] = $this->getRequest('email');
+
+                if (!$this->hasRequest('timezone')) {
+                    // The 'timezone' argument has not been set, throw error.
+                    $this->throwError(3, 'timezone');
+                } else if (!$this->getRequest('timezone')) {
+                    // Throw error if the 'timezone' argument is set but empty.
+                    $this->throwError(1, 'timezone');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['timezone'] = $this->getRequest('timezone');
+
+                if (!$this->hasRequest('gender')) {
+                    // The 'gender' argument has not been set, throw error.
+                    $this->throwError(3, 'gender');
+                } else if (!$this->getRequest('gender')) {
+                    // Throw error if the 'gender' argument is set but empty.
+                    $this->throwError(1, 'gender');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['gender'] = $this->getRequest('gender');
+
+                if (!$this->hasRequest('dob_day')) {
+                    // The 'dob_day' argument has not been set, throw error.
+                    $this->throwError(3, 'dob_day');
+                } else if (!$this->getRequest('dob_day')) {
+                    // Throw error if the 'dob_day' argument is set but empty.
+                    $this->throwError(1, 'dob_day');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['dob_day'] = $this->getRequest('dob_day');
+
+                if (!$this->hasRequest('dob_month')) {
+                    // The 'dob_month' argument has not been set, throw error.
+                    $this->throwError(3, 'dob_month');
+                } else if (!$this->getRequest('dob_month')) {
+                    // Throw error if the 'dob_month' argument is set but empty.
+                    $this->throwError(1, 'dob_month');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['dob_month'] = $this->getRequest('dob_month');
+
+                if (!$this->hasRequest('dob_year')) {
+                    // The 'dob_year' argument has not been set, throw error.
+                    $this->throwError(3, 'dob_year');
+                } else if (!$this->getRequest('dob_year')) {
+                    // Throw error if the 'dob_year' argument is set but empty.
+                    $this->throwError(1, 'dob_year');
+                    break;
+                }
+                // Set the username of the registration.
+                $user_data['dob_year'] = $this->getRequest('dob_year');
+
+
+                if (!$this->hasRequest('ip_address')) {
+                    // The 'ip_address' argument has not been set, throw error.
+                    $this->throwError(3, 'ip_address');
+                } else if (!$this->getRequest('ip_address')) {
+                    // Throw error if the 'ip_address' argument is set but empty.
+                    $this->throwError(1, 'ip_address');
+                    break;
+                }
+                // Set the ip address of the registration.
+                $user_data['ip_address'] = $this->getRequest('ip_address');
+
+                if ($this->hasRequest('group_id')) {
+                    // Request has value.
+                    if (!$this->getRequest('group_id')) {
+                        // Throw error if the 'group_id' argument is set but empty.
+                        $this->throwError(1, 'group_id');
+                        break;
+                    }
+                    // Set the group id of the registration.
+                    $user_data['group_id'] = $this->getRequest('group_id');
+                }
+
+                if ($this->hasRequest('user_state')) {
+                    // Request has user_state.
+                    if (!$this->getRequest('user_state')) {
+                        // Throw error if the 'user_state' argument is set but empty.
+                        $this->throwError(1, 'user_state');
+                        break;
+                    }
+                    // Set the user state of the registration.
+                    $user_data['user_state'] = $this->getRequest('user_state');
+                }
+
+                if ($this->hasRequest('language_id')) {
+                    // Request has language_id.
+                    if (!$this->getRequest('language_id')) {
+                        // Throw error if the 'language_id' argument is set but empty.
+                        $this->throwError(1, 'language_id');
+                        break;
+                    }
+                    // Set the group id of the registration.
+                    $user_data['language'] = $this->getRequest('language_id');
+                }
+
+                $registration_results = $this->getXenAPI()->register($user_data);
+
+                if (!empty($registration_results['error'])) {
+                    // The registration failed, process errors.
+                    if (is_array($registration_results['errors'])) {
+                        // The error message was an array, loop through the messages.
+                        $error_keys = array();
+                        foreach ($registration_results['errors'] as $error_field => $error) {
+                            if (!($error instanceof XenForo_Phrase)) {
+                                $registration_error = array(
+                                    'error_id' => 1,
+                                    'error_key' => 'field_not_recognised', 
+                                    'error_field' => $error_field, 
+                                    'error_phrase' => $error
+                                );
+                                $this->throwError(self::REGISTRATION_ERROR, $registration_error);
+
+                            }
+
+                            // Let's init the registration error array.
+                            $registration_error = array(
+                                'error_key' => $error->getPhraseName(), 
+                                'error_field' => $error_field, 
+                                'error_phrase' => $error->render()
+                            );
+
+                            // Let's get the phrase name and switch through it to make sure we get a proper error message.
+                            switch ($error->getPhraseName()) {
+                                case 'please_enter_value_for_all_required_fields':
+                                    $registration_error['error_id'] = 10;
+                                    break;
+                                case 'please_enter_valid_password':
+                                    $registration_error['error_id'] = 11;
+                                    break;
+                                case 'please_enter_name_that_is_at_least_x_characters_long':
+                                    $registration_error['error_id'] = 12;
+                                    break;
+                                case 'please_enter_name_that_is_at_most_x_characters_long':
+                                    $registration_error['error_id'] = 13;
+                                    break;
+                                case 'please_enter_another_name_disallowed_words':
+                                    $registration_error['error_id'] = 14;
+                                    break;
+                                case 'please_enter_another_name_required_format':
+                                    $registration_error['error_id'] = 15;
+                                    break;
+                                case 'please_enter_name_that_does_not_contain_any_censored_words':
+                                    $registration_error['error_id'] = 16;
+                                    break;
+                                case 'please_enter_name_without_using_control_characters':
+                                    $registration_error['error_id'] = 17;
+                                    break;
+                                case 'please_enter_name_that_does_not_contain_comma':
+                                    $registration_error['error_id'] = 18;
+                                    break;
+                                case 'please_enter_name_that_does_not_resemble_an_email_address':
+                                    $registration_error['error_id'] = 19;
+                                    break;
+                                case 'usernames_must_be_unique':
+                                    $registration_error['error_id'] = 20;
+                                    break;
+                                case 'please_enter_valid_email':
+                                    $registration_error['error_id'] = 21;
+                                    break;
+                                case 'email_addresses_must_be_unique':
+                                    $registration_error['error_id'] = 22;
+                                    break;
+                                case 'email_address_you_entered_has_been_banned_by_administrator':
+                                    $registration_error['error_id'] = 23;
+                                    break;
+                                case 'please_select_valid_time_zone':
+                                    $registration_error['error_id'] = 24;
+                                    break;
+                                case 'please_enter_custom_title_that_does_not_contain_any_censored_words':
+                                    $registration_error['error_id'] = 25;
+                                    break;
+                                case 'please_enter_another_custom_title_disallowed_words':
+                                    $registration_error['error_id'] = 26;
+                                    break;
+                                case 'please_enter_valid_date_of_birth':
+                                    $registration_error['error_id'] = 27;
+                                    break;
+                                case 'you_cannot_delete_your_own_account':
+                                    $registration_error['error_id'] = 28;
+                                    break;
+                                case 'please_enter_valid_value':
+                                    $registration_error['error_id'] = 29;
+                                    break;
+                                default:
+                                    $registration_error['error_id'] = 0;
+                                    break;
+                            }
+                            $this->throwError(self::REGISTRATION_ERROR, $registration_error);
+                        }
+                    } else {
+                        // Throw error message.
+                        $this->throwError(7, 'registering user', $registration_results['errors']);
+                    }
+                } else {
+                    // Registration was successful, return results.
+                    $this->sendResponse($registration_results);
+                }
+                break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwError(11, $this->getAction());
         }
+        $this->throwError(7, 'executing action', $this->getAction());
     }
     
     /**
@@ -1380,10 +1695,16 @@ class XenAPI {
     */
     public function __construct() {
         $this->xfDir = dirname(__FILE__);
-        require($this->xfDir . '/library/XenForo/Autoloader.php');
+        require_once($this->xfDir . '/library/XenForo/Autoloader.php');
         XenForo_Autoloader::getInstance()->setupAutoloader($this->xfDir. '/library');
         XenForo_Application::initialize($this->xfDir . '/library', $this->xfDir);
         XenForo_Application::set('page_start_time', microtime(TRUE));
+
+        // Disable XenForo's PHP 
+        XenForo_Application::disablePhpErrorHandler();
+
+        // Enable error logging for PHP.
+        error_reporting(E_ALL & ~E_NOTICE);
         $this->models = new Models();
         // TODO: Don't create models on init, only create them if they're being used (see Models::checkModel($model_name, $model)).
         $this->getModels()->setUserModel(XenForo_Model::create('XenForo_Model_User'));
@@ -1580,6 +1901,14 @@ class XenAPI {
     public function getForum($forum_id) {
         $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
         return $this->getModels()->getModel('forum')->getForumByID($forum_id);
+    }
+
+    /**
+    * TODO
+    */
+    public function getPhraseKey($phrase_text) {
+        $this->getModels()->checkModel('phrase', XenForo_Model::create('XenForo_Model_Phrase'));
+        return $this->getModels()->getModel('phrase')->getMasterPhraseValue($phrase_text);
     }
 
     /**
@@ -1892,6 +2221,118 @@ class XenAPI {
             // $input is an username, return the user of the username.
             return new User($this->models, $this->models->getUserModel()->getUserByName($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
         }
+    }
+
+    /**
+    * TODO
+    */
+    public function register($user_data) {
+        if (empty($user_data['username'])) {
+            // Username was empty, return error.
+            return array('error' => 1, 'errors' => 'username');
+        } else if (empty($user_data['password'])) {
+            // Password was empty, return error.
+            return array('error' => 1, 'errors' => 'password');
+        } else if (empty($user_data['email'])) {
+            // Email was empty, return error.
+            return array('error' => 1, 'errors' => 'email');
+        } else if (empty($user_data['timezone'])) {
+            // Timezone was empty, return error.
+            return array('error' => 1, 'errors' => 'timezone');
+        } else if (empty($user_data['gender'])) {
+            // Gender was empty, return error.
+            return array('error' => 1, 'errors' => 'gender');
+        } else if (empty($user_data['dob_day'])) {
+            // Day of birth was empty, return error.
+            return array('error' => 1, 'errors' => 'dob_day');
+        } else if (empty($user_data['dob_month'])) {
+            // Month of birth was empty, return error.
+            return array('error' => 1, 'errors' => 'dob_month');
+        } else if (empty($user_data['dob_year'])) {
+            // Year of birth was empty, return error.
+            return array('error' => 1, 'errors' => 'dob_year');
+        } else if (empty($user_data['ip_address'])) {
+            // Year of birth was empty, return error.
+            return array('error' => 1, 'errors' => 'ip_address');
+        }
+
+        // Create a new variable for the password.
+        $password = $user_data['password'];
+
+        // Create a new variable for the ip address.
+        $ip_address = $user_data['ip_address'];
+
+        // Unset the password from the user data array.
+        unset($user_data['password']);
+
+        // Unset the ip address from the user data array.
+        unset($user_data['ip_address']);
+
+        // Get the default options from XenForo.
+        $options = XenForo_Application::get('options');
+
+        // Create the data writer object for registrations, and set the defaults.
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_User');
+        if ($options->registrationDefaults) {
+            // Set the default registration options if it's set in the XenForo options.
+            $writer->bulkSet($options->registrationDefaults, array('ignoreInvalidFields' => TRUE));
+        }
+
+        if (!empty($user_data['group_id'])) {
+            // Group ID is set.
+            $writer->set('user_group_id', $user_data['group_id']);
+            // We need to usnet the group id as we don't want it to be included into the bulk load.
+            unset($user_data['group_id']);
+        } else {
+            // Group ID is not set, default back to default.
+            $writer->set('user_group_id', XenForo_Model_User::$defaultRegisteredGroupId);
+        }
+
+        if (!empty($user_data['user_state'])) {
+            // User state is set.
+            $writer->set('user_state', $user_data['user_state']);
+        } else {
+            // User state is not set, default back to default.
+            $writer->advanceRegistrationUserState();
+        }
+
+        if (!empty($user_data['language_id'])) {
+            // Language ID is set.
+            $writer->set('language_id', $user_data['language_id']);
+        } else {
+            // Language ID is not set, default back to default.
+            $writer->set('language_id', $options->defaultLanguageId);
+        }
+
+        // Check if Gravatar is enabled, set the gravatar if it is and there's a gravatar for the email.
+        if ($options->gravatarEnable && XenForo_Model_Avatar::gravatarExists($data['email'])) {
+            $writer->set('gravatar', $user_data['email']);
+        }
+
+        // Set the data for the data writer.
+        $writer->bulkSet($user_data);
+
+        // Set the password for the data writer.
+        $writer->setPassword($password, $password);
+
+        // Pre save the data.
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The registration failed, return errors.
+            return array('error' => 2, 'errors' => $writer->getErrors());
+        }
+
+        // Save the user to the database.
+        $writer->save();
+         
+        // Get the User as a variable:
+        $user = $writer->getMergedData();
+         
+        // Log the IP of the user that registered.
+        XenForo_Model_Ip::log($user['user_id'], 'user', $user['user_id'], 'register', $ip_address);
+         
+        return $user;
     }
 }
 
