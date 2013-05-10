@@ -134,6 +134,7 @@ class RestAPI {
     private $registration_errors = array(
         0  => 'Unknown registration error',
         1  => 'Field was not recognised',
+        2  => 'Group not found',
         10 => 'Missing required registration fields',
         11 => 'Password invalid',
         12 => 'Name length is too short',
@@ -839,14 +840,9 @@ class RestAPI {
                 }
                 $string = $this->getRequest('value');
                 
-                // Check if the 'value' argument is a number (ID).
-                if (is_numeric($string)) {
-                    // The 'value' argument was a number, search by the group ID.
-                    $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = $string");
-                } else {
-                    // The 'value' argument was not a number, search by the group title and user title instead.
-                    $group = $this->xenAPI->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `title` = '$string' OR `user_title` = '$string'");
-                }
+                // Get the group from XenForo.
+                $group = $this->getXenAPI()->getGroup($string);
+
                 if (!$group) {
                     // Could not find any groups, throw error.
                     $this->throwError(4, 'group', $string);
@@ -1526,15 +1522,25 @@ class RestAPI {
                 // Set the ip address of the registration.
                 $user_data['ip_address'] = $this->getRequest('ip_address');
 
-                if ($this->hasRequest('group_id')) {
+                if ($this->hasRequest('group')) {
                     // Request has value.
-                    if (!$this->getRequest('group_id')) {
-                        // Throw error if the 'group_id' argument is set but empty.
-                        $this->throwError(1, 'group_id');
+                    if (!$this->getRequest('group')) {
+                        // Throw error if the 'group' argument is set but empty.
+                        $this->throwError(1, 'group');
                         break;
                     }
+                    $group = $this->getXenAPI()->getGroup($this->getRequest('group'));
+                    if (!$group) {
+                        $registration_error = array(
+                            'error_id' => 2,
+                            'error_key' => 'group_not_found', 
+                            'error_field' => 'group', 
+                            'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('group') . '"'
+                        );
+                        $this->throwError(self::REGISTRATION_ERROR, $registration_error);
+                    }
                     // Set the group id of the registration.
-                    $user_data['group_id'] = $this->getRequest('group_id');
+                    $user_data['group_id'] = $group['user_group_id'];
                 }
 
                 if ($this->hasRequest('user_state')) {
@@ -1555,8 +1561,8 @@ class RestAPI {
                         $this->throwError(1, 'language_id');
                         break;
                     }
-                    // Set the group id of the registration.
-                    $user_data['language'] = $this->getRequest('language_id');
+                    // Set the language id of the registration.
+                    $user_data['language_id'] = $this->getRequest('language_id');
                 }
 
                 $registration_results = $this->getXenAPI()->register($user_data);
@@ -1785,6 +1791,11 @@ class XenAPI {
         return $this->getModels()->getModel('conversation')->getConversationsForUser($user->getID(), $conditions, $fetchOptions);
     }
 
+    public function getGroup($group) {
+        // Get the group from the database.
+        return $this->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = '$group' OR `title` = '$group' OR `user_title` = '$group'");
+    }
+
     /**
     * Returns a list of resources.
     */
@@ -1901,14 +1912,6 @@ class XenAPI {
     public function getForum($forum_id) {
         $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
         return $this->getModels()->getModel('forum')->getForumByID($forum_id);
-    }
-
-    /**
-    * TODO
-    */
-    public function getPhraseKey($phrase_text) {
-        $this->getModels()->checkModel('phrase', XenForo_Model::create('XenForo_Model_Phrase'));
-        return $this->getModels()->getModel('phrase')->getMasterPhraseValue($phrase_text);
     }
 
     /**
