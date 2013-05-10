@@ -53,8 +53,8 @@ $restAPI->processRequest();
 
 class RestAPI {
     const VERSION = '1.3.dev';
-    const GENERAL_ERROR = 0x01;
-    const REGISTRATION_ERROR = 0x02;
+    const GENERAL_ERROR = 0x1000;
+    const REGISTRATION_ERROR = 0x1001;
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
