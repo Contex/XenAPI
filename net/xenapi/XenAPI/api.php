@@ -137,6 +137,8 @@ class RestAPI {
         1  => 'Field was not recognised',
         2  => 'Group not found',
         3  => 'No values were changed',
+        4  => 'Editing super admins is disabled',
+        5  => 'Invalid custom field array',
         10 => 'Missing required registration fields',
         11 => 'Password invalid',
         12 => 'Name length is too short',
@@ -363,6 +365,38 @@ class RestAPI {
         }
         // Returns TRUE if permission of the action is public or the request has a valid API key.
         return $permission == 'public' || $this->hasAPIKey();
+    }
+
+    public function getCustomArray($input_data) {
+        // Custom fields are set.
+        $custom_array_data = array();
+
+        // Check if there are more than one custom array.
+        if (strpos($input_data, ',') !== FALSE) {
+            // There are more than one custom array set.
+            $custom_arrays = explode(',', $input_data);
+
+            // Loop through the custom fields.
+            foreach ($custom_arrays as $custom_array) {
+                // Check if custom array string contains = symbol, ignore if not.
+                if (strpos($custom_array, '=') !== FALSE) {
+                    // Custom array string contains = symbol, explode it.
+                    $custom_array_list = explode('=', $custom_array);
+
+                    // Add the custom item data to the array.
+                    $custom_array_data[$custom_array_list[0]] = $custom_array_list[1];
+                }
+            }
+        } else if (strpos($input_data, '=') !== FALSE) {
+            // Custom array string contains = symbol, explode it.
+            $custom_array_list = explode('=', $input_data);
+
+            // Add the custom item data to the array.
+            $custom_array_data[$custom_array_list[0]] = $custom_array_list[1];
+        }
+
+        // Return the array(s).
+        return $custom_array_data;
     }
     
     /**
@@ -733,6 +767,31 @@ class RestAPI {
                     }
                     // Set the group id of the registration.
                     $edit_data['group_id'] = $group['user_group_id'];
+                }
+
+                if ($this->hasRequest('custom_fields')) {
+                    // Request has value.
+                    if (!$this->getRequest('custom_fields')) {
+                        // Throw error if the 'custom_fields' argument is set but empty.
+                        $this->throwError(1, 'custom_fields');
+                        break;
+                    }
+                    $custom_fields = $this->getCustomArray($this->getRequest('custom_fields'));
+
+                    // Check if we found any valid custom fields, throw error if not.
+                    if (count($custom_fields) == 0) {
+                        // The custom fields array was empty, throw error.
+                        $edit_error = array(
+                            'error_id' => 5,
+                            'error_key' => 'invalid_custom_fields', 
+                            'error_field' => 'custom_fields', 
+                            'error_phrase' => 'The custom fields values were invalid, valid values are: '
+                                            . 'custom_fields=custom_field1=custom_value1,custom_field2=custom_value2 '
+                                            . 'but got: "' . $this->getRequest('custom_fields') . '" instead'
+                        );
+                        $this->throwError(self::USER_ERROR, $edit_error);
+                    }
+                    $edit_data['custom_fields'] = $custom_fields;
                 }
 
                 // List of fields that are accepted to be edited.
@@ -1628,6 +1687,31 @@ class RestAPI {
                     $user_data['group_id'] = $group['user_group_id'];
                 }
 
+                if ($this->hasRequest('custom_fields')) {
+                    // Request has value.
+                    if (!$this->getRequest('custom_fields')) {
+                        // Throw error if the 'custom_fields' argument is set but empty.
+                        $this->throwError(1, 'custom_fields');
+                        break;
+                    }
+                    $custom_fields = $this->getCustomArray($this->getRequest('custom_fields'));
+
+                    // Check if we found any valid custom fields, throw error if not.
+                    if (count($custom_fields) == 0) {
+                        // The custom fields array was empty, throw error.
+                        $registration_error = array(
+                            'error_id' => 5,
+                            'error_key' => 'invalid_custom_fields', 
+                            'error_field' => 'custom_fields', 
+                            'error_phrase' => 'The custom fields values were invalid, valid values are: '
+                                            . 'custom_fields=custom_field1=custom_value1,custom_field2=custom_value2 '
+                                            . 'but got: "' . $this->getRequest('custom_fields') . '" instead'
+                        );
+                        $this->throwError(self::USER_ERROR, $registration_error);
+                    }
+                    $user_data['custom_fields'] = $custom_fields;
+                }
+
                 if ($this->hasRequest('user_state')) {
                     // Request has user_state.
                     if (!$this->getRequest('user_state')) {
@@ -1757,6 +1841,14 @@ class XenAPI {
             // We need the full profile of the user, let's re-grab the user and get the full profile.
             $user = $this->getUser($user->getID(), array('join' => XenForo_Model_User::FETCH_USER_FULL));
         }
+        $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+        // Check if user is super admin.
+        if ($this->getModels()->getModel('user')->isUserSuperAdmin($user->data)) {
+            // User is super admin, we do not allow editing super admins, return error.
+            return array('error' => 5, 'errors' => 'Editing super admins is disabled.');
+        }
+
+        print_r($user->data);
 
         if (!empty($edit_data['password'])) {
             // Create a new variable for the password.
@@ -1778,8 +1870,29 @@ class XenAPI {
         if (!empty($edit_data['group_id'])) {
             // Group ID is set.
             $writer->set('user_group_id', $edit_data['group_id']);
-            // We need to usnet the group id as we don't want it to be included into the bulk load.
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
             unset($edit_data['group_id']);
+        }
+
+        if (!empty($edit_data['secondary_group_ids'])) {
+            // Secondary group ID's are set.
+            $writer->setSecondaryGroups(unserialize($edit_data['secondary_group_ids']));
+
+            // We need to unset the secondary group id's as we don't want it to be included into the bulk set.
+            unset($edit_data['secondary_group_ids']);
+        }
+
+        if (!empty($edit_data['custom_fields'])) {
+            // Custom fields are set.
+
+            // Check if there are any custom fields in the data array.
+            if (count($edit_data['custom_fields']) > 0) {
+                // There were one or more custom fields set, set them in the writer.
+                $writer->setCustomFields($edit_data['custom_fields']);
+            }
+            // We need to unset the custom fields as we don't want it to be included into the bulk set.
+            unset($edit_data['custom_fields']);
         }
 
         // Bulkset the edited data.
@@ -1811,6 +1924,10 @@ class XenAPI {
          
         // Get the user data.
         $user_data = $writer->getMergedData();
+
+        echo "<br><br>";
+        print_r($user_data);
+        echo "<br><br>";
 
         // Check the difference between the before and after data.
         $diff_array = array_diff($user->data, $user_data);
@@ -2390,7 +2507,8 @@ class XenAPI {
         if (!empty($user_data['group_id'])) {
             // Group ID is set.
             $writer->set('user_group_id', $user_data['group_id']);
-            // We need to usnet the group id as we don't want it to be included into the bulk load.
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
             unset($user_data['group_id']);
         } else {
             // Group ID is not set, default back to default.
@@ -2411,6 +2529,18 @@ class XenAPI {
         } else {
             // Language ID is not set, default back to default.
             $writer->set('language_id', $options->defaultLanguageId);
+        }
+
+        if (!empty($user_data['custom_fields'])) {
+            // Custom fields are set.
+
+            // Check if there are any custom fields in the data array.
+            if (count($user_data['custom_fields']) > 0) {
+                // There were one or more custom fields set, set them in the writer.
+                $writer->setCustomFields($user_data['custom_fields']);
+            }
+            // We need to unset the custom fields as we don't want it to be included into the bulk set.
+            unset($user_data['custom_fields']);
         }
 
         // Check if Gravatar is enabled, set the gravatar if it is and there's a gravatar for the email.
