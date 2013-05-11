@@ -1848,8 +1848,6 @@ class XenAPI {
             return array('error' => 5, 'errors' => 'Editing super admins is disabled.');
         }
 
-        print_r($user->data);
-
         if (!empty($edit_data['password'])) {
             // Create a new variable for the password.
             $password = $edit_data['password'];
@@ -1924,10 +1922,6 @@ class XenAPI {
          
         // Get the user data.
         $user_data = $writer->getMergedData();
-
-        echo "<br><br>";
-        print_r($user_data);
-        echo "<br><br>";
 
         // Check the difference between the before and after data.
         $diff_array = array_diff($user->data, $user_data);
