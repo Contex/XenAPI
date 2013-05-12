@@ -141,9 +141,11 @@ class RestAPI {
         5  => 'Invalid custom field array',
         6  => 'Editing super admins is disabled',
         7  => 'The add_groups parameter needs to be an array and have at least 1 item',
-        8  => 'The user is already in the group(s)',
+        8  => 'The user is already a member of the group(s)',
         9  => 'No values were changed',
         10 => 'Missing required a required parameter',
+        11 => 'The remove_groups parameter needs to be an array and have at least 1 item',
+        12 => 'The user is not a member of the group(s)',
         30 => 'Missing required registration fields',
         31 => 'Password invalid',
         32 => 'Name length is too short',
@@ -774,20 +776,23 @@ class RestAPI {
                     $edit_data['group_id'] = $group['user_group_id'];
                 }
 
-                if ($this->hasRequest('add_groups')) {
+                $group_fields = array('add_groups', 'remove_groups');
+                foreach ($group_fields as $group_field) {
+                    if (!$this->hasRequest($group_field)) {
+                        continue;
+                    }
                     // Request has value.
-                    if (!$this->getRequest('add_groups')) {
-                        // Throw error if the 'add_groups' argument is set but empty.
-                        $this->throwError(1, 'add_groups');
-                        break;
+                    if (!$this->getRequest($group_field)) {
+                        // Throw error if the $group_field argument is set but empty.
+                        $this->throwError(1, $group_field);
                     }
                     // Initialize the array.
-                    $edit_data['add_groups'] = array();
+                    $edit_data[$group_field] = array();
 
                     // Check if value is an array.
-                    if (strpos($this->getRequest('add_groups'), ',') !== FALSE) {
+                    if (strpos($this->getRequest($group_field), ',') !== FALSE) {
                         // Value is an array, explode it.
-                        $groups = explode(',', $this->getRequest('add_groups'));
+                        $groups = explode(',', $this->getRequest($group_field));
 
                         // Loop through the group values.
                         foreach ($groups as $group_value) {
@@ -800,17 +805,17 @@ class RestAPI {
                                 $edit_error = array(
                                     'error_id' => 2,
                                     'error_key' => 'group_not_found', 
-                                    'error_field' => 'add_groups', 
+                                    'error_field' => $group_field, 
                                     'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
                                 );
                                 $this->throwError(self::USER_ERROR, $edit_error);
                             }
                             // Add the group_id to the the add_group array.
-                            $edit_data['add_groups'][] = $group['user_group_id'];
+                            $edit_data[$group_field][] = $group['user_group_id'];
                         }
                     } else {
                         // Grab the group from the group value.
-                        $group = $this->getXenAPI()->getGroup($this->getRequest('add_groups'));
+                        $group = $this->getXenAPI()->getGroup($this->getRequest($group_field));
 
                         // Check if group was found.
                         if (!$group) {
@@ -818,13 +823,13 @@ class RestAPI {
                             $edit_error = array(
                                 'error_id' => 2,
                                 'error_key' => 'group_not_found', 
-                                'error_field' => 'add_groups', 
-                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('add_groups') . '"'
+                                'error_field' => $group_field, 
+                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest($group_field) . '"'
                             );
                             $this->throwError(self::USER_ERROR, $edit_error);
                         }
                         // Add the group_id to the the add_groups array.
-                        $edit_data['add_groups'][] = $group['user_group_id'];
+                        $edit_data[$group_field][] = $group['user_group_id'];
                     }
                 }
 
@@ -1772,6 +1777,63 @@ class RestAPI {
                     $user_data['custom_fields'] = $custom_fields;
                 }
 
+                $group_fields = array('add_groups');
+                foreach ($group_fields as $group_field) {
+                    if (!$this->hasRequest($group_field)) {
+                        continue;
+                    }
+                    // Request has value.
+                    if (!$this->getRequest($group_field)) {
+                        // Throw error if the $group_field argument is set but empty.
+                        $this->throwError(1, $group_field);
+                    }
+                    // Initialize the array.
+                    $user_data[$group_field] = array();
+
+                    // Check if value is an array.
+                    if (strpos($this->getRequest($group_field), ',') !== FALSE) {
+                        // Value is an array, explode it.
+                        $groups = explode(',', $this->getRequest($group_field));
+
+                        // Loop through the group values.
+                        foreach ($groups as $group_value) {
+                            // Grab the group from the group value.
+                            $group = $this->getXenAPI()->getGroup($group_value);
+
+                            // Check if group was found.
+                            if (!$group) {
+                                // Group was not found, throw error.
+                                $edit_error = array(
+                                    'error_id' => 2,
+                                    'error_key' => 'group_not_found', 
+                                    'error_field' => $group_field, 
+                                    'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
+                                );
+                                $this->throwError(self::USER_ERROR, $edit_error);
+                            }
+                            // Add the group_id to the the add_group array.
+                            $user_data[$group_field][] = $group['user_group_id'];
+                        }
+                    } else {
+                        // Grab the group from the group value.
+                        $group = $this->getXenAPI()->getGroup($this->getRequest($group_field));
+
+                        // Check if group was found.
+                        if (!$group) {
+                            // Group was not found, throw error.
+                            $edit_error = array(
+                                'error_id' => 2,
+                                'error_key' => 'group_not_found', 
+                                'error_field' => $group_field, 
+                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest($group_field) . '"'
+                            );
+                            $this->throwError(self::USER_ERROR, $edit_error);
+                        }
+                        // Add the group_id to the the add_groups array.
+                        $user_data[$group_field][] = $group['user_group_id'];
+                    }
+                }
+
                 if ($this->hasRequest('user_state')) {
                     // Request has user_state.
                     if (!$this->getRequest('user_state')) {
@@ -1921,6 +1983,9 @@ class XenAPI {
             unset($edit_data['password']);
         }
 
+        // Init the diff array.
+        $diff_array = array();
+
         // Create the data writer object for registrations, and set the defaults.
         $writer = XenForo_DataWriter::create('XenForo_DataWriter_User');
 
@@ -1957,7 +2022,6 @@ class XenAPI {
             // Initialize some arrays.
             $groups = array();
             $groups_exist = array();
-            $new_groups = array();
 
             // Check if there are more than one custom array.
             if (strpos($user->data['secondary_group_ids'], ',') !== FALSE) {
@@ -1977,14 +2041,14 @@ class XenAPI {
                 } else {
                     // User is not in the group, add the group ID to the new_groups array.
                     $groups[] = $group_id;
-                    $new_groups[] = $group_id;
+                    $diff_array['new_secondary_groups'][] = $group_id;
                 }
             }
 
             // Check if the user is in one or more of the specified groups.
             if (count($groups_exist) > 0) {
                 // The user was already in one or more groups, return error.
-                return array('error' => 8, 'errors' => 'The user is already in group ID\'s: (' . implode(',', $groups_exist) . ')');
+                return array('error' => 8, 'errors' => 'The user is already a member of the group ID\'s: (' . implode(',', $groups_exist) . ')');
             }
 
             // Set the secondary group(s) of the user.
@@ -1992,6 +2056,54 @@ class XenAPI {
 
             // We need to unset the group id as we don't want it to be included into the bulk set.
             unset($edit_data['add_groups']);
+        }
+
+        if (!empty($edit_data['remove_groups'])) {
+            // Remove group is set.
+
+            // Check if there are any custom fields in the data array.
+            if (!is_array($edit_data['remove_groups']) || count($edit_data['remove_groups']) == 0) {
+                // The edit failed, return errors.
+                return array('error' => 11, 'errors' => 'The remove_groups parameter needs to be an array and have at least 1 item.');
+            }
+
+            // Initialize some arrays.
+            $groups = array();
+            $groups_not_exist = array();
+
+            // Check if there are more than one custom array.
+            if (strpos($user->data['secondary_group_ids'], ',') !== FALSE) {
+                // Value is an array, explode it.
+                $groups = explode(',', $user->data['secondary_group_ids']);
+            } else {
+                // Value is not an array, just add the single group to the array.
+                $groups[] = $user->data['secondary_group_ids'];
+            }
+
+            // Loop through the groups that are going to be added to check if the user already have the groups.
+            foreach ($edit_data['remove_groups'] as $group_key => $group_id) {
+                // Check if the user already is in the group.
+                if (!in_array($group_id, $groups)) {
+                    // User is already in the group, add the group ID to the group_exist array.
+                    $groups_not_exist[] = $group_id;
+                } else {
+                    // User is in the group, add the group ID to the remove_groups array.
+                    unset($groups[$group_key]);
+                    $diff_array['removed_secondary_groups'][] = $group_id;
+                }
+            }
+
+            // Check if the user is in one or more of the specified groups.
+            if (count($groups_not_exist) > 0) {
+                // The user was already in one or more groups, return error.
+                return array('error' => 12, 'errors' => 'The user is not a member of group ID\'s: (' . implode(',', $groups_not_exist) . ')');
+            }
+
+            // Set the secondary group(s) of the user.
+            $writer->setSecondaryGroups($groups);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($edit_data['remove_groups']);
         }
 
         if (!empty($edit_data['secondary_group_ids'])) {
@@ -2040,10 +2152,16 @@ class XenAPI {
         $user_data = $writer->getMergedData();
 
         // Check the difference between the before and after data.
-        $diff_array = array_diff($user->data, $user_data);
+        $diff_array = array_merge(array_diff($user->data, $user_data), $diff_array);
 
         foreach ($diff_array as $diff_key => $diff_value) {
-            $diff_array[$diff_key] = $user_data[$diff_key];
+            if (isset($user_data[$diff_key])) {
+                $diff_array[$diff_key] = $user_data[$diff_key];
+            }
+        }
+
+        if (isset($diff_array['secondary_group_ids'])) {
+            unset($diff_array['secondary_group_ids']);
         }
 
         if (!empty($diff_array['custom_fields'])) {
@@ -2056,11 +2174,6 @@ class XenAPI {
             foreach ($custom_fields_diff_array as $custom_fields_diff_key => $custom_fields_diff_value) {
                 $diff_array['custom_fields'][$custom_fields_diff_key] = $custom_fields_diff_value;
             }
-        }
-
-        if ($user_data['secondary_group_ids'] != $user->data['secondary_group_ids']) {
-            // Secondary group ids changed.
-            $diff_array['secondary_group_ids'] = $new_groups;
         }
 
         if (isset($password)) {
@@ -2668,6 +2781,22 @@ class XenAPI {
             }
             // We need to unset the custom fields as we don't want it to be included into the bulk set.
             unset($user_data['custom_fields']);
+        }
+
+        if (!empty($user_data['add_groups'])) {
+            // Add group is set.
+
+            // Check if there are any custom fields in the data array.
+            if (!is_array($user_data['add_groups']) || count($user_data['add_groups']) == 0) {
+                // The edit failed, return errors.
+                return array('error' => 7, 'errors' => 'The add_groups parameter needs to be an array and have at least 1 item.');
+            }
+
+            // Set the secondary group(s) of the user.
+            $writer->setSecondaryGroups($user_data['add_groups']);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($user_data['add_groups']);
         }
 
         // Check if Gravatar is enabled, set the gravatar if it is and there's a gravatar for the email.
