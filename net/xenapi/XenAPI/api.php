@@ -529,7 +529,7 @@ class RestAPI {
         if ($required && !$this->hasRequest($parameter)) {
             // The '$parameter' argument has not been set, throw error.
             $this->throwError(3, $parameter);
-        } else if (!$this->getRequest($parameter)) {
+        } else if ($this->hasRequest($parameter) && !$this->getRequest($parameter)) {
             // Throw error if the '$parameter' argument is set but empty.
             $this->throwError(1, $parameter);
         }
@@ -869,7 +869,6 @@ class RestAPI {
                 }
 
                 // List of fields that are accepted to be edited.
-                // TODO: Make it possible to edit custom fields.
                 $edit_fields = array('username', 'password', 'email', 'gender', 'custom_title', 'style_id', 'timezone', 'visible', 'dob_day', 'dob_month', 'dob_year', 'user_state');
 
                 // List of fields that the request should ignore.
@@ -1730,7 +1729,10 @@ class RestAPI {
                 $user_data = array();
 
                 // Array of required parameters.
-                $required_parameters = array('username', 'password', 'email', 'timezone', 'gender', 'dob_day', 'dob_month', 'dob_year', 'ip_address');
+                $required_parameters = array('username', 'password', 'email');
+
+                // Array of additional parameters.
+                $additional_parameters = array('timezone', 'gender', 'dob_day', 'dob_month', 'dob_year', 'ip_address');
 
                 foreach ($required_parameters as $required_parameter) {
                     // Check if the required parameter is set and not empty.
@@ -1739,6 +1741,9 @@ class RestAPI {
                     // Set the request value.
                     $user_data[$required_parameter] = $this->getRequest($required_parameter);
                 }
+
+                // Check if the additional parameters are set and not empty.
+                $this->checkRequestParameters($additional_parameters, FALSE);
 
                 if ($this->hasRequest('group')) {
                     // Request has value.
@@ -1786,23 +1791,20 @@ class RestAPI {
                     $user_data['custom_fields'] = $custom_fields;
                 }
 
-                $group_fields = array('add_groups');
-                foreach ($group_fields as $group_field) {
-                    if (!$this->hasRequest($group_field)) {
-                        continue;
-                    }
+                // Check if add groups is set.
+                if ($this->hasRequest('add_groups')) {
                     // Request has value.
-                    if (!$this->getRequest($group_field)) {
-                        // Throw error if the $group_field argument is set but empty.
-                        $this->throwError(1, $group_field);
+                    if (!$this->getRequest('add_groups')) {
+                        // Throw error if the 'add_groups' argument is set but empty.
+                        $this->throwError(1, 'add_groups');
                     }
                     // Initialize the array.
-                    $user_data[$group_field] = array();
+                    $user_data['add_groups'] = array();
 
                     // Check if value is an array.
-                    if (strpos($this->getRequest($group_field), ',') !== FALSE) {
+                    if (strpos($this->getRequest('add_groups'), ',') !== FALSE) {
                         // Value is an array, explode it.
-                        $groups = explode(',', $this->getRequest($group_field));
+                        $groups = explode(',', $this->getRequest('add_groups'));
 
                         // Loop through the group values.
                         foreach ($groups as $group_value) {
@@ -1815,17 +1817,17 @@ class RestAPI {
                                 $edit_error = array(
                                     'error_id' => 2,
                                     'error_key' => 'group_not_found', 
-                                    'error_field' => $group_field, 
+                                    'error_field' => 'add_groups', 
                                     'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
                                 );
                                 $this->throwError(self::USER_ERROR, $edit_error);
                             }
                             // Add the group_id to the the add_group array.
-                            $user_data[$group_field][] = $group['user_group_id'];
+                            $user_data['add_groups'][] = $group['user_group_id'];
                         }
                     } else {
                         // Grab the group from the group value.
-                        $group = $this->getXenAPI()->getGroup($this->getRequest($group_field));
+                        $group = $this->getXenAPI()->getGroup($this->getRequest('add_groups'));
 
                         // Check if group was found.
                         if (!$group) {
@@ -1833,13 +1835,13 @@ class RestAPI {
                             $edit_error = array(
                                 'error_id' => 2,
                                 'error_key' => 'group_not_found', 
-                                'error_field' => $group_field, 
-                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest($group_field) . '"'
+                                'error_field' => 'add_groups', 
+                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('add_groups') . '"'
                             );
                             $this->throwError(self::USER_ERROR, $edit_error);
                         }
                         // Add the group_id to the the add_groups array.
-                        $user_data[$group_field][] = $group['user_group_id'];
+                        $user_data['add_groups'][] = $group['user_group_id'];
                     }
                 }
 
@@ -2725,37 +2727,21 @@ class XenAPI {
         } else if (empty($user_data['email'])) {
             // Email was empty, return error.
             return array('error' => 10, 'errors' => 'Missing required parameter: email');
-        } else if (empty($user_data['timezone'])) {
-            // Timezone was empty, return error.
-            return array('error' => 10, 'errors' => 'Missing required parameter: timezone');
-        } else if (empty($user_data['gender'])) {
-            // Gender was empty, return error.
-            return array('error' => 10, 'errors' => 'Missing required parameter: gender');
-        } else if (empty($user_data['dob_day'])) {
-            // Day of birth was empty, return error.
-            return array('error' => 10, 'errors' => 'Missing required parameter: dob_day');
-        } else if (empty($user_data['dob_month'])) {
-            // Month of birth was empty, return error.
-            return array('error' => 10, 'errors' => 'Missing required parameter: dob_month');
-        } else if (empty($user_data['dob_year'])) {
-            // Year of birth was empty, return error.
-            return array('error' => 10, 'errors' => 'Missing required parameter: dob_year');
-        } else if (empty($user_data['ip_address'])) {
-            // Year of birth was empty, return error.
-            return array('error' => 10, 'errors' => 'Missing required parameter: ip_address');
         }
 
         // Create a new variable for the password.
         $password = $user_data['password'];
 
-        // Create a new variable for the ip address.
-        $ip_address = $user_data['ip_address'];
-
         // Unset the password from the user data array.
         unset($user_data['password']);
 
-        // Unset the ip address from the user data array.
-        unset($user_data['ip_address']);
+        if (!empty($user_data['ip_address'])) {
+            // Create a new variable for the ip address.
+            $ip_address = $user_data['ip_address'];
+
+            // Unset the ip address from the user data array.
+            unset($user_data['ip_address']);
+        }
 
         // Get the default options from XenForo.
         $options = XenForo_Application::get('options');
@@ -2846,9 +2832,12 @@ class XenAPI {
          
         // Get the User as a variable:
         $user = $writer->getMergedData();
-         
-        // Log the IP of the user that registered.
-        XenForo_Model_Ip::log($user['user_id'], 'user', $user['user_id'], 'register', $ip_address);
+
+        // Check if IP is set.
+        if (!empty($user_data['ip_address'])) {
+            // Log the IP of the user that registered.
+            XenForo_Model_Ip::log($user['user_id'], 'user', $user['user_id'], 'register', $ip_address);
+        }
          
         return $user;
     }
