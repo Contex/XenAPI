@@ -745,8 +745,17 @@ class RestAPI {
                     $this->throwError(1, 'user');
                     break;
                 }
-                // Get the user object.
-                $user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                if ($this->hasRequest('custom_field_identifier')) {
+                    if (!$this->getRequest('custom_field_identifier')) {
+                        // Throw error if the 'custom_field_identifier' argument is set but empty.
+                        $this->throwError(1, 'custom_field_identifier');
+                        break;
+                    }
+                    $user = $this->getXenAPI()->getUser($this->getRequest('user'), array('custom_field' => $this->getRequest('custom_field_identifier')));
+                } else {
+                    // Get the user object.
+                    $user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                }
                 if (!$user->isRegistered()) {
                     // Requested user was not registered, throw error.
                     $this->throwError(4, 'user', $this->getRequest('user'));
@@ -2678,6 +2687,12 @@ class XenAPI {
     * Returns FALSE if $input is NULL.
     */
     public function getUser($input, $fetchOptions = array()) {
+        if (!empty($fetchOptions['custom_field'])) {
+            $results = $this->getDatabase()->fetchRow("SELECT `user_id` FROM `xf_user_field_value` WHERE `field_id` = '" . $fetchOptions['custom_field'] . "' AND `field_value` = '$input'");
+            if (!empty($results['user_id'])) {
+                $input = $results['user_id'];
+            }
+        }
         if ($input == FALSE || $input == NULL) {
             return FALSE;
         } else if (is_numeric($input)) {
