@@ -648,6 +648,10 @@ class RestAPI {
             $error = $this->getError($error, $extra, $extra2, $error_type);
             $error_response = array('error' => $error['id'], 'message' => $error['message']);
         }
+        // Throw a 400 error.
+        header('HTTP/ 400 API error');
+
+        // Send error.
         $this->sendResponse($error_response);
     }
     
