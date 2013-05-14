@@ -2083,13 +2083,21 @@ class XenAPI {
             // Loop through the groups that are going to be added to check if the user already have the groups.
             foreach ($edit_data['remove_groups'] as $group_key => $group_id) {
                 // Check if the user already is in the group.
-                if (!in_array($group_id, $groups)) {
+                if (!in_array($group_id, $groups) && $user->data['user_group_id'] != $group_id) {
                     // User is already in the group, add the group ID to the group_exist array.
                     $groups_not_exist[] = $group_id;
                 } else {
-                    // User is in the group, add the group ID to the remove_groups array.
+                    // Check if user's primary group is the group ID.
+                    if (!empty($user->data['user_group_id']) && $user->data['user_group_id'] == $group_id) {
+                        // User's primary group ID was found in the remove_groups array, move the user to the default registration group.
+                        $writer->set('user_group_id', XenForo_Model_User::$defaultRegisteredGroupId);
+                         $diff_array['removed_group'] = $group_id;
+                    } else {
+                        // User is in the group, add the group ID to the remove_groups array.
+                        $diff_array['removed_secondary_groups'][] = $group_id;
+                    }
+                    // Unset the group id.
                     unset($groups[$group_key]);
-                    $diff_array['removed_secondary_groups'][] = $group_id;
                 }
             }
 
