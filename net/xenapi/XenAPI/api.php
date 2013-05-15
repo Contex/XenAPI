@@ -1746,8 +1746,15 @@ class RestAPI {
                     $user_data[$required_parameter] = $this->getRequest($required_parameter);
                 }
 
-                // Check if the additional parameters are set and not empty.
-                $this->checkRequestParameters($additional_parameters, FALSE);
+                foreach ($additional_parameters as $additional_parameter) {
+                    // Check if the required parameter is set and not empty.
+                    $this->checkRequestParameter($additional_parameter, FALSE);
+
+                    if ($this->getRequest($additional_parameter)) {
+                        // Set the request value.
+                        $user_data[$additional_parameter] = $this->getRequest($additional_parameter);
+                    }
+                }
 
                 if ($this->hasRequest('group')) {
                     // Request has value.
