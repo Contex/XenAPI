@@ -1245,15 +1245,6 @@ class RestAPI {
                     $node_type = 'all';
                 }
 
-                // Check if the order by argument is set.
-                /*$order_by_field = $this->checkOrderBy(array('title', 'post_date', 'view_count', 'reply_count', 'first_post_likes', 'last_post_date'));
-
-                // Add the order by options to the fetch options.
-                if ($this->hasRequest('order_by')) {
-                    $fetch_options['order']          = $order_by_field;
-                    $fetch_options['orderDirection'] = $this->order;
-                }*/
-
                 // Get the nodes.
                 $nodes = $this->getXenAPI()->getNodes($node_type, $fetch_options, $this->getUser());
 
