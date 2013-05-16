@@ -53,8 +53,8 @@ $restAPI->processRequest();
 
 class RestAPI {
     const VERSION = '1.3.dev';
-    const GENERAL_ERROR = 0x01;
-    const REGISTRATION_ERROR = 0x02;
+    const GENERAL_ERROR = 0x201;
+    const USER_ERROR = 0x202;
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -79,6 +79,7 @@ class RestAPI {
     */
     private $actions = array(
         'authenticate'     => 'public',
+        'edituser'         => 'api_key',
         'getactions'       => 'public', 
         'getaddon'         => 'administrator',
         'getaddons'        => 'administrator',
@@ -113,7 +114,7 @@ class RestAPI {
         5  => 'Authentication error: "{ERROR}"',
         6  => '"{ERROR}" is not a valid {ERROR2}',
         7  => 'Something went wrong when "{ERROR}": "{ERROR2}"',
-        8  => 'PLACEHOLDER',
+        8  => 'The request had no values set, available fields are: "({ERROR})"',
         9  => 'You are not permitted to use the "{ERROR}" action on others (remove the value argument)',
         10 => 'You do not have permission to use the "{ERROR}" action',
         11 => '"{ERROR}" is a supported action but there is no code for it yet',
@@ -130,31 +131,41 @@ class RestAPI {
         22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})"'
     );
 
-    // Specific errors related to registration.
-    private $registration_errors = array(
-        0  => 'Unknown registration error',
+    // Specific errors related to user actions.
+    private $user_errors = array(
+        0  => 'Unknown user error',
         1  => 'Field was not recognised',
         2  => 'Group not found',
-        10 => 'Missing required registration fields',
-        11 => 'Password invalid',
-        12 => 'Name length is too short',
-        13 => 'Name length is too long',
-        14 => 'Name contains disallowed words',
-        15 => 'Name does not follow the required format',
-        16 => 'Name contains censored words',
-        17 => 'Name contains CTRL characters',
-        18 => 'Name contains comma',
-        19 => 'Name resembles an email',
-        20 => 'User already exists',
-        21 => 'Invalid email',
-        22 => 'Email already used',
-        23 => 'Email banned by administrator',
-        24 => 'Invalid timezone',
-        25 => 'Custom title contains censored words',
-        26 => 'Custom title contains disallowed words',
-        27 => 'Invalid date of birth',
-        28 => 'Cannot delete your own account',
-        29 => 'Field contained an invalid value'
+        3  => 'User data array was missing',
+        4  => 'The specified user is not registered',
+        5  => 'Invalid custom field array',
+        6  => 'Editing super admins is disabled',
+        7  => 'The add_groups parameter needs to be an array and have at least 1 item',
+        8  => 'The user is already a member of the group(s)',
+        9  => 'No values were changed',
+        10 => 'Missing required a required parameter',
+        11 => 'The remove_groups parameter needs to be an array and have at least 1 item',
+        12 => 'The user is not a member of the group(s)',
+        30 => 'Missing required registration fields',
+        31 => 'Password invalid',
+        32 => 'Name length is too short',
+        33 => 'Name length is too long',
+        34 => 'Name contains disallowed words',
+        35 => 'Name does not follow the required format',
+        36 => 'Name contains censored words',
+        37 => 'Name contains CTRL characters',
+        38 => 'Name contains comma',
+        39 => 'Name resembles an email',
+        40 => 'User already exists',
+        41 => 'Invalid email',
+        42 => 'Email already used',
+        43 => 'Email banned by administrator',
+        44 => 'Invalid timezone',
+        45 => 'Custom title contains censored words',
+        46 => 'Custom title contains disallowed words',
+        47 => 'Invalid date of birth',
+        48 => 'Cannot delete your own account',
+        49 => 'Field contained an invalid value'
     );
 
     private $xenAPI, $method, $data = array(), $hash = FALSE, $apikey = FALSE;
@@ -362,6 +373,38 @@ class RestAPI {
         // Returns TRUE if permission of the action is public or the request has a valid API key.
         return $permission == 'public' || $this->hasAPIKey();
     }
+
+    public function getCustomArray($input_data) {
+        // Custom fields are set.
+        $custom_array_data = array();
+
+        // Check if there are more than one custom array.
+        if (strpos($input_data, ',') !== FALSE) {
+            // There are more than one custom array set.
+            $custom_arrays = explode(',', $input_data);
+
+            // Loop through the custom fields.
+            foreach ($custom_arrays as $custom_array) {
+                // Check if custom array string contains = symbol, ignore if not.
+                if (strpos($custom_array, '=') !== FALSE) {
+                    // Custom array string contains = symbol, explode it.
+                    $custom_array_list = explode('=', $custom_array);
+
+                    // Add the custom item data to the array.
+                    $custom_array_data[$custom_array_list[0]] = $custom_array_list[1];
+                }
+            }
+        } else if (strpos($input_data, '=') !== FALSE) {
+            // Custom array string contains = symbol, explode it.
+            $custom_array_list = explode('=', $input_data);
+
+            // Add the custom item data to the array.
+            $custom_array_data[$custom_array_list[0]] = $custom_array_list[1];
+        }
+
+        // Return the array(s).
+        return $custom_array_data;
+    }
     
     /**
     * Returns TRUE if the request has an API key that is valid, returns FALSE if not.
@@ -480,26 +523,96 @@ class RestAPI {
     }
 
     /**
+    * TODO
+    */
+    public function checkRequestParameter($parameter, $required = TRUE) {
+        if ($required && !$this->hasRequest($parameter)) {
+            // The '$parameter' argument has not been set, throw error.
+            $this->throwError(3, $parameter);
+        } else if ($this->hasRequest($parameter) && !$this->getRequest($parameter)) {
+            // Throw error if the '$parameter' argument is set but empty.
+            $this->throwError(1, $parameter);
+        }
+        return TRUE;
+    }
+
+    /**
+    * TODO
+    */
+    public function checkRequestParameters(array $parameters, $required = TRUE) {
+        foreach ($parameters as $parameter) {
+            $this->checkRequestParameter($parameter, $required);
+        }
+        return TRUE;
+    }
+
+    /**
+    * TODO
+    */
+    public function getUserErrorID($phrase_name) {
+        switch ($phrase_name) {
+            case 'please_enter_value_for_all_required_fields':
+                return 30;
+            case 'please_enter_valid_password':
+                return 31;
+            case 'please_enter_name_that_is_at_least_x_characters_long':
+                return 32;
+            case 'please_enter_name_that_is_at_most_x_characters_long':
+                return 33;
+            case 'please_enter_another_name_disallowed_words':
+                return 34;
+            case 'please_enter_another_name_required_format':
+                return 35;
+            case 'please_enter_name_that_does_not_contain_any_censored_words':
+                return 36;
+            case 'please_enter_name_without_using_control_characters':
+                return 37;
+            case 'please_enter_name_that_does_not_contain_comma':
+                return 38;
+            case 'please_enter_name_that_does_not_resemble_an_email_address':
+                return 39;
+            case 'usernames_must_be_unique':
+                return 40;
+            case 'please_enter_valid_email':
+                return 41;
+            case 'email_addresses_must_be_unique':
+                return 42;
+            case 'email_address_you_entered_has_been_banned_by_administrator':
+                return 43;
+            case 'please_select_valid_time_zone':
+                return 44;
+            case 'please_enter_custom_title_that_does_not_contain_any_censored_words':
+                return 45;
+            case 'please_enter_another_custom_title_disallowed_words':
+                return 46;
+            case 'please_enter_valid_date_of_birth':
+                return 47;
+            case 'you_cannot_delete_your_own_account':
+                return 48;
+            case 'please_enter_valid_value':
+                return 49;
+            default:
+                return 0;
+        }
+    }
+
+    /**
     * Gets the error message and replaces {ERROR} with the $extra parameter.
     */
     public function getError($error, $extra = NULL, $extra2 = NULL, $error_type = self::GENERAL_ERROR) {
         if ($error_type == NULL) {
             $error_type = self::GENERAL_ERROR;
         }
-        if ($error_type & self::GENERAL_ERROR) {
-            if (array_key_exists($error, $this->general_errors)) {
-                $error_string = $this->general_errors[$error];
-            } else {
-                $error_string = $this->general_errors[0];
+        if ($error_type == self::GENERAL_ERROR) {
+            if (!array_key_exists($error, $this->general_errors)) {
                 $error = 0;
             }
-        } else if ($error_type & self::REGISTRATION_ERROR) {
-            if (array_key_exists($error, $this->registration_errors)) {
-                $error_string = $this->registration_errors[$error];
-            } else {
-                $error_string = $this->registration_errors[0];
+            $error_string = $this->general_errors[$error];
+        } else if ($error_type == self::USER_ERROR) {
+            if (!array_key_exists($error, $this->user_errors)) {
                 $error = 0;
             }
+            $error_string = $this->user_errors[$error];
         }
         if ($extra != NULL) {
             $error_string = str_replace('{ERROR}', $extra, $error_string);
@@ -514,16 +627,16 @@ class RestAPI {
     * Throw the error message.
     */
     public function throwError($error, $extra = NULL, $extra2 = NULL) {
-        if ($error & self::REGISTRATION_ERROR) {
-            $registration_error = $this->getError($extra['error_id'], NULL, NULL, self::REGISTRATION_ERROR); #TODO
-            $general_error = $this->getError(7, 'registering user', $registration_error['message']);
+        if ($error == self::USER_ERROR) {
+            $user_error = $this->getError($extra['error_id'], NULL, NULL, self::USER_ERROR);
+            $general_error = $this->getError(7, 'registering user', $user_error['message']);
             $error_response = array(
                 'error' => $general_error['id'], 
                 'message' => $general_error['message'], 
-                'registration_error_id' => $registration_error['id'],
-                'registration_error_field' => $extra['error_field'],
-                'registration_error_key' => $extra['error_key'],
-                'registration_error_phrase' => $extra['error_phrase']
+                'user_error_id' => $user_error['id'],
+                'user_error_field' => $extra['error_field'],
+                'user_error_key' => $extra['error_key'],
+                'user_error_phrase' => $extra['error_phrase']
             );
         } else {
             if (is_array($extra)) {
@@ -535,6 +648,10 @@ class RestAPI {
             $error = $this->getError($error, $extra, $extra2, $error_type);
             $error_response = array('error' => $error['id'], 'message' => $error['message']);
         }
+        // Throw a 400 error.
+        header('HTTP/ 400 API error');
+
+        // Send error.
         $this->sendResponse($error_response);
     }
     
@@ -617,6 +734,204 @@ class RestAPI {
                         // The username or password was wrong, throw error.
                         $this->throwError(5, 'Invalid username or password!');
                     }
+                }
+                break;
+            case 'edituser':
+                /**
+                * Edits the user.
+                */
+                if (!$this->hasRequest('user')) {
+                    // The 'user' argument has not been set, throw error.
+                    $this->throwError(3, 'user');
+                    break;
+                } else if (!$this->getRequest('user')) {
+                    // Throw error if the 'user' argument is set but empty.
+                    $this->throwError(1, 'user');
+                    break;
+                }
+                if ($this->hasRequest('custom_field_identifier')) {
+                    if (!$this->getRequest('custom_field_identifier')) {
+                        // Throw error if the 'custom_field_identifier' argument is set but empty.
+                        $this->throwError(1, 'custom_field_identifier');
+                        break;
+                    }
+                    $user = $this->getXenAPI()->getUser($this->getRequest('user'), array('custom_field' => $this->getRequest('custom_field_identifier')));
+                } else {
+                    // Get the user object.
+                    $user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                }
+                if (!$user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwError(4, 'user', $this->getRequest('user'));
+                }
+
+                // Init the edit array.
+                $edit_data = array();
+
+                if ($this->hasRequest('group')) {
+                    // Request has value.
+                    if (!$this->getRequest('group')) {
+                        // Throw error if the 'group' argument is set but empty.
+                        $this->throwError(1, 'group');
+                        break;
+                    }
+                    $group = $this->getXenAPI()->getGroup($this->getRequest('group'));
+                    if (!$group) {
+                        $edit_error = array(
+                            'error_id' => 2,
+                            'error_key' => 'group_not_found', 
+                            'error_field' => 'group', 
+                            'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('group') . '"'
+                        );
+                        $this->throwError(self::USER_ERROR, $edit_error);
+                    }
+                    // Set the group id of the edit.
+                    $edit_data['group_id'] = $group['user_group_id'];
+                }
+
+                $group_fields = array('add_groups', 'remove_groups');
+                foreach ($group_fields as $group_field) {
+                    if (!$this->hasRequest($group_field)) {
+                        continue;
+                    }
+                    // Request has value.
+                    if (!$this->getRequest($group_field)) {
+                        // Throw error if the $group_field argument is set but empty.
+                        $this->throwError(1, $group_field);
+                    }
+                    // Initialize the array.
+                    $edit_data[$group_field] = array();
+
+                    // Check if value is an array.
+                    if (strpos($this->getRequest($group_field), ',') !== FALSE) {
+                        // Value is an array, explode it.
+                        $groups = explode(',', $this->getRequest($group_field));
+
+                        // Loop through the group values.
+                        foreach ($groups as $group_value) {
+                            // Grab the group from the group value.
+                            $group = $this->getXenAPI()->getGroup($group_value);
+
+                            // Check if group was found.
+                            if (!$group) {
+                                // Group was not found, throw error.
+                                $edit_error = array(
+                                    'error_id' => 2,
+                                    'error_key' => 'group_not_found', 
+                                    'error_field' => $group_field, 
+                                    'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
+                                );
+                                $this->throwError(self::USER_ERROR, $edit_error);
+                            }
+                            // Add the group_id to the the add_group array.
+                            $edit_data[$group_field][] = $group['user_group_id'];
+                        }
+                    } else {
+                        // Grab the group from the group value.
+                        $group = $this->getXenAPI()->getGroup($this->getRequest($group_field));
+
+                        // Check if group was found.
+                        if (!$group) {
+                            // Group was not found, throw error.
+                            $edit_error = array(
+                                'error_id' => 2,
+                                'error_key' => 'group_not_found', 
+                                'error_field' => $group_field, 
+                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest($group_field) . '"'
+                            );
+                            $this->throwError(self::USER_ERROR, $edit_error);
+                        }
+                        // Add the group_id to the the add_groups array.
+                        $edit_data[$group_field][] = $group['user_group_id'];
+                    }
+                }
+
+
+                if ($this->hasRequest('custom_fields')) {
+                    // Request has value.
+                    if (!$this->getRequest('custom_fields')) {
+                        // Throw error if the 'custom_fields' argument is set but empty.
+                        $this->throwError(1, 'custom_fields');
+                        break;
+                    }
+                    $custom_fields = $this->getCustomArray($this->getRequest('custom_fields'));
+
+                    // Check if we found any valid custom fields, throw error if not.
+                    if (count($custom_fields) == 0) {
+                        // The custom fields array was empty, throw error.
+                        $edit_error = array(
+                            'error_id' => 5,
+                            'error_key' => 'invalid_custom_fields', 
+                            'error_field' => 'custom_fields', 
+                            'error_phrase' => 'The custom fields values were invalid, valid values are: '
+                                            . 'custom_fields=custom_field1=custom_value1,custom_field2=custom_value2 '
+                                            . 'but got: "' . $this->getRequest('custom_fields') . '" instead'
+                        );
+                        $this->throwError(self::USER_ERROR, $edit_error);
+                    }
+                    $edit_data['custom_fields'] = $custom_fields;
+                }
+
+                // List of fields that are accepted to be edited.
+                $edit_fields = array('username', 'password', 'email', 'gender', 'custom_title', 'style_id', 'timezone', 'visible', 'dob_day', 'dob_month', 'dob_year', 'user_state');
+
+                // List of fields that the request should ignore.
+                $ignore_fields = array('hash', 'action', 'user');
+
+                // Let's check which fields are set.
+                foreach ($this->data as $data_key => $data_item) {
+                    if (!in_array($data_key, $ignore_fields) && in_array($data_key, $edit_fields) && $this->checkRequestParameter($data_key, FALSE)) {
+                        $edit_data[$data_key] = $data_item;
+                    }
+                }
+
+                if (count($edit_data) == 0) {
+                    // There are no fields set, throw error.
+                    $this->throwError(8, $edit_fields);
+                }
+               
+                // Get edit results.
+                $edit_results = $this->getXenAPI()->editUser($user, $edit_data);
+
+                if (!empty($edit_results['error'])) {
+                    // The registration failed, process errors.
+                    if (is_array($edit_results['errors'])) {
+                        // The error message was an array, loop through the messages.
+                        $error_keys = array();
+                        foreach ($edit_results['errors'] as $error_field => $error) {
+                            if (!($error instanceof XenForo_Phrase)) {
+                                $edit_error = array(
+                                    'error_id' => 1,
+                                    'error_key' => 'field_not_recognised', 
+                                    'error_field' => $error_field, 
+                                    'error_phrase' => $error
+                                );
+                                $this->throwError(self::USER_ERROR, $edit_error);
+
+                            }
+
+                            // Let's init the edit error array.
+                            $edit_error = array(
+                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
+                                'error_key' => $error->getPhraseName(), 
+                                'error_field' => $error_field, 
+                                'error_phrase' => $error->render()
+                            );
+
+                            $this->throwError(self::USER_ERROR, $edit_error);
+                        }
+                    } else {
+                        $edit_error = array(
+                            'error_id' => $edit_results['error'],
+                            'error_key' => 'general_user_edit_error', 
+                            'error_phrase' => $edit_results['errors']
+                        );
+                        $this->throwError(self::USER_ERROR, $edit_error);
+                        // Throw error message.
+                    }
+                } else {
+                    // Edit was successful, return results.
+                    $this->sendResponse($edit_results);
                 }
                 break;
             case 'getactions':
@@ -1413,114 +1728,33 @@ class RestAPI {
             case 'register':
                 /**
                 * Registers a user.
-                *
-                * EXAMPLE:
-                *   - api.php?action=register&value=Contex
-                *   - api.php?action=register&value=Cont*
-                *   - api.php?action=register&value=C*
                 */
                 // Init user array.
                 $user_data = array();
 
-                if (!$this->hasRequest('username')) {
-                    // The 'username' argument has not been set, throw error.
-                    $this->throwError(3, 'username');
-                } else if (!$this->getRequest('username')) {
-                    // Throw error if the 'username' argument is set but empty.
-                    $this->throwError(1, 'username');
-                    break;
-                }
-                // Set the username of the registration.
-                $user_data['username'] = $this->getRequest('username');
+                // Array of required parameters.
+                $required_parameters = array('username', 'password', 'email');
 
-                if (!$this->hasRequest('password')) {
-                    // The 'password' argument has not been set, throw error.
-                    $this->throwError(3, 'password');
-                } else if (!$this->getRequest('password')) {
-                    // Throw error if the 'password' argument is set but empty.
-                    $this->throwError(1, 'password');
-                    break;
-                }
-                // Set the username of the registration.
-                $user_data['password'] = $this->getRequest('password');
+                // Array of additional parameters.
+                $additional_parameters = array('timezone', 'gender', 'dob_day', 'dob_month', 'dob_year', 'ip_address');
 
-                if (!$this->hasRequest('email')) {
-                    // The 'email' argument has not been set, throw error.
-                    $this->throwError(3, 'email');
-                } else if (!$this->getRequest('email')) {
-                    // Throw error if the 'email' argument is set but empty.
-                    $this->throwError(1, 'email');
-                    break;
-                }
-                // Set the username of the registration.
-                $user_data['email'] = $this->getRequest('email');
+                foreach ($required_parameters as $required_parameter) {
+                    // Check if the required parameter is set and not empty.
+                    $this->checkRequestParameter($required_parameter);
 
-                if (!$this->hasRequest('timezone')) {
-                    // The 'timezone' argument has not been set, throw error.
-                    $this->throwError(3, 'timezone');
-                } else if (!$this->getRequest('timezone')) {
-                    // Throw error if the 'timezone' argument is set but empty.
-                    $this->throwError(1, 'timezone');
-                    break;
+                    // Set the request value.
+                    $user_data[$required_parameter] = $this->getRequest($required_parameter);
                 }
-                // Set the username of the registration.
-                $user_data['timezone'] = $this->getRequest('timezone');
 
-                if (!$this->hasRequest('gender')) {
-                    // The 'gender' argument has not been set, throw error.
-                    $this->throwError(3, 'gender');
-                } else if (!$this->getRequest('gender')) {
-                    // Throw error if the 'gender' argument is set but empty.
-                    $this->throwError(1, 'gender');
-                    break;
+                foreach ($additional_parameters as $additional_parameter) {
+                    // Check if the additional parameter is set and not empty.
+                    $this->checkRequestParameter($additional_parameter, FALSE);
+
+                    if ($this->getRequest($additional_parameter)) {
+                        // Set the request value.
+                        $user_data[$additional_parameter] = $this->getRequest($additional_parameter);
+                    }
                 }
-                // Set the username of the registration.
-                $user_data['gender'] = $this->getRequest('gender');
-
-                if (!$this->hasRequest('dob_day')) {
-                    // The 'dob_day' argument has not been set, throw error.
-                    $this->throwError(3, 'dob_day');
-                } else if (!$this->getRequest('dob_day')) {
-                    // Throw error if the 'dob_day' argument is set but empty.
-                    $this->throwError(1, 'dob_day');
-                    break;
-                }
-                // Set the username of the registration.
-                $user_data['dob_day'] = $this->getRequest('dob_day');
-
-                if (!$this->hasRequest('dob_month')) {
-                    // The 'dob_month' argument has not been set, throw error.
-                    $this->throwError(3, 'dob_month');
-                } else if (!$this->getRequest('dob_month')) {
-                    // Throw error if the 'dob_month' argument is set but empty.
-                    $this->throwError(1, 'dob_month');
-                    break;
-                }
-                // Set the username of the registration.
-                $user_data['dob_month'] = $this->getRequest('dob_month');
-
-                if (!$this->hasRequest('dob_year')) {
-                    // The 'dob_year' argument has not been set, throw error.
-                    $this->throwError(3, 'dob_year');
-                } else if (!$this->getRequest('dob_year')) {
-                    // Throw error if the 'dob_year' argument is set but empty.
-                    $this->throwError(1, 'dob_year');
-                    break;
-                }
-                // Set the username of the registration.
-                $user_data['dob_year'] = $this->getRequest('dob_year');
-
-
-                if (!$this->hasRequest('ip_address')) {
-                    // The 'ip_address' argument has not been set, throw error.
-                    $this->throwError(3, 'ip_address');
-                } else if (!$this->getRequest('ip_address')) {
-                    // Throw error if the 'ip_address' argument is set but empty.
-                    $this->throwError(1, 'ip_address');
-                    break;
-                }
-                // Set the ip address of the registration.
-                $user_data['ip_address'] = $this->getRequest('ip_address');
 
                 if ($this->hasRequest('group')) {
                     // Request has value.
@@ -1537,10 +1771,89 @@ class RestAPI {
                             'error_field' => 'group', 
                             'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('group') . '"'
                         );
-                        $this->throwError(self::REGISTRATION_ERROR, $registration_error);
+                        $this->throwError(self::USER_ERROR, $registration_error);
                     }
                     // Set the group id of the registration.
                     $user_data['group_id'] = $group['user_group_id'];
+                }
+
+                if ($this->hasRequest('custom_fields')) {
+                    // Request has value.
+                    if (!$this->getRequest('custom_fields')) {
+                        // Throw error if the 'custom_fields' argument is set but empty.
+                        $this->throwError(1, 'custom_fields');
+                        break;
+                    }
+                    $custom_fields = $this->getCustomArray($this->getRequest('custom_fields'));
+
+                    // Check if we found any valid custom fields, throw error if not.
+                    if (count($custom_fields) == 0) {
+                        // The custom fields array was empty, throw error.
+                        $registration_error = array(
+                            'error_id' => 5,
+                            'error_key' => 'invalid_custom_fields', 
+                            'error_field' => 'custom_fields', 
+                            'error_phrase' => 'The custom fields values were invalid, valid values are: '
+                                            . 'custom_fields=custom_field1=custom_value1,custom_field2=custom_value2 '
+                                            . 'but got: "' . $this->getRequest('custom_fields') . '" instead'
+                        );
+                        $this->throwError(self::USER_ERROR, $registration_error);
+                    }
+                    $user_data['custom_fields'] = $custom_fields;
+                }
+
+                // Check if add groups is set.
+                if ($this->hasRequest('add_groups')) {
+                    // Request has value.
+                    if (!$this->getRequest('add_groups')) {
+                        // Throw error if the 'add_groups' argument is set but empty.
+                        $this->throwError(1, 'add_groups');
+                    }
+                    // Initialize the array.
+                    $user_data['add_groups'] = array();
+
+                    // Check if value is an array.
+                    if (strpos($this->getRequest('add_groups'), ',') !== FALSE) {
+                        // Value is an array, explode it.
+                        $groups = explode(',', $this->getRequest('add_groups'));
+
+                        // Loop through the group values.
+                        foreach ($groups as $group_value) {
+                            // Grab the group from the group value.
+                            $group = $this->getXenAPI()->getGroup($group_value);
+
+                            // Check if group was found.
+                            if (!$group) {
+                                // Group was not found, throw error.
+                                $edit_error = array(
+                                    'error_id' => 2,
+                                    'error_key' => 'group_not_found', 
+                                    'error_field' => 'add_groups', 
+                                    'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
+                                );
+                                $this->throwError(self::USER_ERROR, $edit_error);
+                            }
+                            // Add the group_id to the the add_group array.
+                            $user_data['add_groups'][] = $group['user_group_id'];
+                        }
+                    } else {
+                        // Grab the group from the group value.
+                        $group = $this->getXenAPI()->getGroup($this->getRequest('add_groups'));
+
+                        // Check if group was found.
+                        if (!$group) {
+                            // Group was not found, throw error.
+                            $edit_error = array(
+                                'error_id' => 2,
+                                'error_key' => 'group_not_found', 
+                                'error_field' => 'add_groups', 
+                                'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('add_groups') . '"'
+                            );
+                            $this->throwError(self::USER_ERROR, $edit_error);
+                        }
+                        // Add the group_id to the the add_groups array.
+                        $user_data['add_groups'][] = $group['user_group_id'];
+                    }
                 }
 
                 if ($this->hasRequest('user_state')) {
@@ -1580,88 +1893,28 @@ class RestAPI {
                                     'error_field' => $error_field, 
                                     'error_phrase' => $error
                                 );
-                                $this->throwError(self::REGISTRATION_ERROR, $registration_error);
+                                $this->throwError(self::USER_ERROR, $registration_error);
 
                             }
 
                             // Let's init the registration error array.
                             $registration_error = array(
+                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
                                 'error_key' => $error->getPhraseName(), 
                                 'error_field' => $error_field, 
                                 'error_phrase' => $error->render()
                             );
-
-                            // Let's get the phrase name and switch through it to make sure we get a proper error message.
-                            switch ($error->getPhraseName()) {
-                                case 'please_enter_value_for_all_required_fields':
-                                    $registration_error['error_id'] = 10;
-                                    break;
-                                case 'please_enter_valid_password':
-                                    $registration_error['error_id'] = 11;
-                                    break;
-                                case 'please_enter_name_that_is_at_least_x_characters_long':
-                                    $registration_error['error_id'] = 12;
-                                    break;
-                                case 'please_enter_name_that_is_at_most_x_characters_long':
-                                    $registration_error['error_id'] = 13;
-                                    break;
-                                case 'please_enter_another_name_disallowed_words':
-                                    $registration_error['error_id'] = 14;
-                                    break;
-                                case 'please_enter_another_name_required_format':
-                                    $registration_error['error_id'] = 15;
-                                    break;
-                                case 'please_enter_name_that_does_not_contain_any_censored_words':
-                                    $registration_error['error_id'] = 16;
-                                    break;
-                                case 'please_enter_name_without_using_control_characters':
-                                    $registration_error['error_id'] = 17;
-                                    break;
-                                case 'please_enter_name_that_does_not_contain_comma':
-                                    $registration_error['error_id'] = 18;
-                                    break;
-                                case 'please_enter_name_that_does_not_resemble_an_email_address':
-                                    $registration_error['error_id'] = 19;
-                                    break;
-                                case 'usernames_must_be_unique':
-                                    $registration_error['error_id'] = 20;
-                                    break;
-                                case 'please_enter_valid_email':
-                                    $registration_error['error_id'] = 21;
-                                    break;
-                                case 'email_addresses_must_be_unique':
-                                    $registration_error['error_id'] = 22;
-                                    break;
-                                case 'email_address_you_entered_has_been_banned_by_administrator':
-                                    $registration_error['error_id'] = 23;
-                                    break;
-                                case 'please_select_valid_time_zone':
-                                    $registration_error['error_id'] = 24;
-                                    break;
-                                case 'please_enter_custom_title_that_does_not_contain_any_censored_words':
-                                    $registration_error['error_id'] = 25;
-                                    break;
-                                case 'please_enter_another_custom_title_disallowed_words':
-                                    $registration_error['error_id'] = 26;
-                                    break;
-                                case 'please_enter_valid_date_of_birth':
-                                    $registration_error['error_id'] = 27;
-                                    break;
-                                case 'you_cannot_delete_your_own_account':
-                                    $registration_error['error_id'] = 28;
-                                    break;
-                                case 'please_enter_valid_value':
-                                    $registration_error['error_id'] = 29;
-                                    break;
-                                default:
-                                    $registration_error['error_id'] = 0;
-                                    break;
-                            }
-                            $this->throwError(self::REGISTRATION_ERROR, $registration_error);
+                            
+                            $this->throwError(self::USER_ERROR, $registration_error);
                         }
                     } else {
-                        // Throw error message.
-                        $this->throwError(7, 'registering user', $registration_results['errors']);
+                        $registration_error = array(
+                            'error_id' => $registration_results['error'],
+                            'error_key' => 'general_user_registration_error', 
+                            'error_phrase' => $registration_results['errors']
+                        );
+
+                        $this->throwError(self::USER_ERROR, $registration_error);
                     }
                 } else {
                     // Registration was successful, return results.
@@ -1724,6 +1977,246 @@ class XenAPI {
         } catch (Exception $ignore) {
             // The resource model is missing, ignore the exceiption.
         }
+    }
+
+    public function editUser($user, $edit_data = array()) {
+        if (!$user) {
+            return array('error' => 3, 'errors' => 'The user array key was not set.');
+        }
+        if (!$user->isRegistered()) {
+            return array('error' => 4, 'errors' => 'User is not registered.');
+        }
+        if (empty($user->data['dob_day'])) {
+            // We need the full profile of the user, let's re-grab the user and get the full profile.
+            $user = $this->getUser($user->getID(), array('join' => XenForo_Model_User::FETCH_USER_FULL));
+        }
+        $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+        // Check if user is super admin.
+        if ($this->getModels()->getModel('user')->isUserSuperAdmin($user->data)) {
+            // User is super admin, we do not allow editing super admins, return error.
+            return array('error' => 6, 'errors' => 'Editing super admins is disabled.');
+        }
+
+        if (!empty($edit_data['password'])) {
+            // Create a new variable for the password.
+            $password = $edit_data['password'];
+
+            // Unset the password from the user data array.
+            unset($edit_data['password']);
+        }
+
+        // Init the diff array.
+        $diff_array = array();
+
+        // Create the data writer object for registrations, and set the defaults.
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_User');
+
+        // Set the existing data of the user before we submit the data.
+        $writer->setExistingData($user->data);
+
+        // Let the writer know that the edit is legit and made by an administrator.
+        $writer->setOption(XenForo_DataWriter_User::OPTION_ADMIN_EDIT, TRUE);
+
+        if (!empty($edit_data['group_id'])) {
+            // Group ID is set.
+            $writer->set('user_group_id', $edit_data['group_id']);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($edit_data['group_id']);
+        }
+
+        if (!empty($edit_data['remove_group_id'])) {
+            // Group ID is set.
+            #$writer->set('user_group_id', $edit_data['group_id']);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($edit_data['remove_group_id']);
+        }
+        if (!empty($edit_data['add_groups'])) {
+            // Add group is set.
+
+            // Check if there are any custom fields in the data array.
+            if (!is_array($edit_data['add_groups']) || count($edit_data['add_groups']) == 0) {
+                // The edit failed, return errors.
+                return array('error' => 7, 'errors' => 'The add_groups parameter needs to be an array and have at least 1 item.');
+            }
+
+            // Initialize some arrays.
+            $groups = array();
+            $groups_exist = array();
+
+            // Check if there are more than one custom array.
+            if (strpos($user->data['secondary_group_ids'], ',') !== FALSE) {
+                // Value is an array, explode it.
+                $groups = explode(',', $user->data['secondary_group_ids']);
+            } else {
+                // Value is not an array, just add the single group  to the array.
+                $groups[] = $user->data['secondary_group_ids'];
+            }
+
+            // Loop through the groups that are going to be added to check if the user already have the groups.
+            foreach ($edit_data['add_groups'] as $group_id) {
+                // Check if the user already is in the group.
+                if (in_array($group_id, $groups)) {
+                    // User is already in the group, add the group ID to the group_exist array.
+                    $groups_exist[] = $group_id;
+                } else {
+                    // User is not in the group, add the group ID to the new_groups array.
+                    $groups[] = $group_id;
+                    $diff_array['new_secondary_groups'][] = $group_id;
+                }
+            }
+
+            // Check if the user is in one or more of the specified groups.
+            if (count($groups_exist) > 0) {
+                // The user was already in one or more groups, return error.
+                return array('error' => 8, 'errors' => 'The user is already a member of the group ID\'s: (' . implode(',', $groups_exist) . ')');
+            }
+
+            // Set the secondary group(s) of the user.
+            $writer->setSecondaryGroups($groups);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($edit_data['add_groups']);
+        }
+
+        if (!empty($edit_data['remove_groups'])) {
+            // Remove group is set.
+
+            // Check if there are any custom fields in the data array.
+            if (!is_array($edit_data['remove_groups']) || count($edit_data['remove_groups']) == 0) {
+                // The edit failed, return errors.
+                return array('error' => 11, 'errors' => 'The remove_groups parameter needs to be an array and have at least 1 item.');
+            }
+
+            // Initialize some arrays.
+            $groups = array();
+            $groups_not_exist = array();
+
+            // Check if there are more than one custom array.
+            if (strpos($user->data['secondary_group_ids'], ',') !== FALSE) {
+                // Value is an array, explode it.
+                $groups = explode(',', $user->data['secondary_group_ids']);
+            } else {
+                // Value is not an array, just add the single group to the array.
+                $groups[] = $user->data['secondary_group_ids'];
+            }
+
+            // Loop through the groups that are going to be added to check if the user already have the groups.
+            foreach ($edit_data['remove_groups'] as $group_key => $group_id) {
+                // Check if the user already is in the group.
+                if (!in_array($group_id, $groups) && $user->data['user_group_id'] != $group_id) {
+                    // User is already in the group, add the group ID to the group_exist array.
+                    $groups_not_exist[] = $group_id;
+                } else {
+                    // Check if user's primary group is the group ID.
+                    if (!empty($user->data['user_group_id']) && $user->data['user_group_id'] == $group_id) {
+                        // User's primary group ID was found in the remove_groups array, move the user to the default registration group.
+                        $writer->set('user_group_id', XenForo_Model_User::$defaultRegisteredGroupId);
+                         $diff_array['removed_group'] = $group_id;
+                    } else {
+                        // User is in the group, add the group ID to the remove_groups array.
+                        $diff_array['removed_secondary_groups'][] = $group_id;
+                    }
+                    // Unset the group id.
+                    unset($groups[$group_key]);
+                }
+            }
+
+            // Check if the user is in one or more of the specified groups.
+            if (count($groups_not_exist) > 0) {
+                // The user was already in one or more groups, return error.
+                return array('error' => 12, 'errors' => 'The user is not a member of group ID\'s: (' . implode(',', $groups_not_exist) . ')');
+            }
+
+            // Set the secondary group(s) of the user.
+            $writer->setSecondaryGroups($groups);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($edit_data['remove_groups']);
+        }
+
+        if (!empty($edit_data['secondary_group_ids'])) {
+            // Secondary group ID's are set.
+            $writer->setSecondaryGroups(unserialize($edit_data['secondary_group_ids']));
+
+            // We need to unset the secondary group id's as we don't want it to be included into the bulk set.
+            unset($edit_data['secondary_group_ids']);
+        }
+
+        if (!empty($edit_data['custom_fields'])) {
+            // Custom fields are set.
+
+            // Check if there are any custom fields in the data array.
+            if (count($edit_data['custom_fields']) > 0) {
+                // There were one or more custom fields set, set them in the writer.
+                $writer->setCustomFields($edit_data['custom_fields']);
+            }
+            // We need to unset the custom fields as we don't want it to be included into the bulk set.
+            unset($edit_data['custom_fields']);
+        }
+
+        // Bulkset the edited data.
+        $writer->bulkSet($edit_data);
+
+        if (isset($password)) {
+            // Set the password for the data writer.
+            $writer->setPassword($password, $password);
+        }
+
+        // Set the data for the data writer.
+        $writer->bulkSet($edit_data);
+
+        // Pre save the data.
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The edit failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        // Save the user to the database.
+        $writer->save();
+         
+        // Get the user data.
+        $user_data = $writer->getMergedData();
+
+        // Check the difference between the before and after data.
+        $diff_array = array_merge(array_diff($user->data, $user_data), $diff_array);
+
+        foreach ($diff_array as $diff_key => $diff_value) {
+            if (isset($user_data[$diff_key])) {
+                $diff_array[$diff_key] = $user_data[$diff_key];
+            }
+        }
+
+        if (isset($diff_array['secondary_group_ids'])) {
+            unset($diff_array['secondary_group_ids']);
+        }
+
+        if (!empty($diff_array['custom_fields'])) {
+            // Check the difference in the custom fields.
+            $custom_fields_diff_array = array_diff(unserialize($user->data['custom_fields']), unserialize($diff_array['custom_fields']));
+
+            unset($diff_array['custom_fields']);
+
+            // Loop through the differences and add them to the diff array.
+            foreach ($custom_fields_diff_array as $custom_fields_diff_key => $custom_fields_diff_value) {
+                $diff_array['custom_fields'][$custom_fields_diff_key] = $custom_fields_diff_value;
+            }
+        }
+
+        if (isset($password)) {
+            // Password is changed, make sure we add it to the difference array.
+            $diff_array['password'] = 'OK';
+        }
+
+        if (count($diff_array) == 0) {
+            // Nothing was changed, throw error.
+            return array('error' => 9, 'errors' => 'No values were changed.');
+        }
+
+        return $diff_array;
     }
     
     /**
@@ -1864,7 +2357,7 @@ class XenAPI {
 
             if (empty($user->data['global_permission_cache'])) {
                 // Check if the user data has permissions cache set, grab it if not.
-                $user = $this->getUser($user->getID(), TRUE);
+                $user = $this->getUser($user->getID(), array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS));
             }
 
             if (empty($user->data['permissions'])) {
@@ -2206,23 +2699,29 @@ class XenAPI {
     * The $input parameter can be an user ID, username or e-mail.
     * Returns FALSE if $input is NULL.
     */
-    public function getUser($input, $grab_permission = FALSE) {
+    public function getUser($input, $fetchOptions = array()) {
+        if (!empty($fetchOptions['custom_field'])) {
+            $results = $this->getDatabase()->fetchRow("SELECT `user_id` FROM `xf_user_field_value` WHERE `field_id` = '" . $fetchOptions['custom_field'] . "' AND `field_value` = '$input'");
+            if (!empty($results['user_id'])) {
+                $input = $results['user_id'];
+            }
+        }
         if ($input == FALSE || $input == NULL) {
             return FALSE;
         } else if (is_numeric($input)) {
             // $input is a number, grab the user by an ID.
-            $user = new User($this->models, $this->models->getUserModel()->getUserById($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
+            $user = new User($this->models, $this->models->getUserModel()->getUserById($input, $fetchOptions));
             if (!$user->isRegistered()) {
                 // The user ID was not found, grabbing the user by the username instead.
-                return new User($this->models, $this->models->getUserModel()->getUserByName($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
+                return new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
             }
             return $user;
         } else if ($this->models->getUserModel()->couldBeEmail($input)) {
             // $input is an e-mail, return the user of the e-mail.
-            return new User($this->models, $this->models->getUserModel()->getUserByEmail($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
+            return new User($this->models, $this->models->getUserModel()->getUserByEmail($input, $fetchOptions));
         } else {
             // $input is an username, return the user of the username.
-            return new User($this->models, $this->models->getUserModel()->getUserByName($input, ($grab_permission) ? array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS) : array()));
+            return new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
         }
     }
 
@@ -2232,44 +2731,28 @@ class XenAPI {
     public function register($user_data) {
         if (empty($user_data['username'])) {
             // Username was empty, return error.
-            return array('error' => 1, 'errors' => 'username');
+            return array('error' => 10, 'errors' => 'Missing required parameter: username');
         } else if (empty($user_data['password'])) {
             // Password was empty, return error.
-            return array('error' => 1, 'errors' => 'password');
+            return array('error' => 10, 'errors' => 'Missing required parameter: password');
         } else if (empty($user_data['email'])) {
             // Email was empty, return error.
-            return array('error' => 1, 'errors' => 'email');
-        } else if (empty($user_data['timezone'])) {
-            // Timezone was empty, return error.
-            return array('error' => 1, 'errors' => 'timezone');
-        } else if (empty($user_data['gender'])) {
-            // Gender was empty, return error.
-            return array('error' => 1, 'errors' => 'gender');
-        } else if (empty($user_data['dob_day'])) {
-            // Day of birth was empty, return error.
-            return array('error' => 1, 'errors' => 'dob_day');
-        } else if (empty($user_data['dob_month'])) {
-            // Month of birth was empty, return error.
-            return array('error' => 1, 'errors' => 'dob_month');
-        } else if (empty($user_data['dob_year'])) {
-            // Year of birth was empty, return error.
-            return array('error' => 1, 'errors' => 'dob_year');
-        } else if (empty($user_data['ip_address'])) {
-            // Year of birth was empty, return error.
-            return array('error' => 1, 'errors' => 'ip_address');
+            return array('error' => 10, 'errors' => 'Missing required parameter: email');
         }
 
         // Create a new variable for the password.
         $password = $user_data['password'];
 
-        // Create a new variable for the ip address.
-        $ip_address = $user_data['ip_address'];
-
         // Unset the password from the user data array.
         unset($user_data['password']);
 
-        // Unset the ip address from the user data array.
-        unset($user_data['ip_address']);
+        if (!empty($user_data['ip_address'])) {
+            // Create a new variable for the ip address.
+            $ip_address = $user_data['ip_address'];
+
+            // Unset the ip address from the user data array.
+            unset($user_data['ip_address']);
+        }
 
         // Get the default options from XenForo.
         $options = XenForo_Application::get('options');
@@ -2284,7 +2767,8 @@ class XenAPI {
         if (!empty($user_data['group_id'])) {
             // Group ID is set.
             $writer->set('user_group_id', $user_data['group_id']);
-            // We need to usnet the group id as we don't want it to be included into the bulk load.
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
             unset($user_data['group_id']);
         } else {
             // Group ID is not set, default back to default.
@@ -2307,6 +2791,34 @@ class XenAPI {
             $writer->set('language_id', $options->defaultLanguageId);
         }
 
+        if (!empty($user_data['custom_fields'])) {
+            // Custom fields are set.
+
+            // Check if there are any custom fields in the data array.
+            if (count($user_data['custom_fields']) > 0) {
+                // There were one or more custom fields set, set them in the writer.
+                $writer->setCustomFields($user_data['custom_fields']);
+            }
+            // We need to unset the custom fields as we don't want it to be included into the bulk set.
+            unset($user_data['custom_fields']);
+        }
+
+        if (!empty($user_data['add_groups'])) {
+            // Add group is set.
+
+            // Check if there are any custom fields in the data array.
+            if (!is_array($user_data['add_groups']) || count($user_data['add_groups']) == 0) {
+                // The edit failed, return errors.
+                return array('error' => 7, 'errors' => 'The add_groups parameter needs to be an array and have at least 1 item.');
+            }
+
+            // Set the secondary group(s) of the user.
+            $writer->setSecondaryGroups($user_data['add_groups']);
+
+            // We need to unset the group id as we don't want it to be included into the bulk set.
+            unset($user_data['add_groups']);
+        }
+
         // Check if Gravatar is enabled, set the gravatar if it is and there's a gravatar for the email.
         if ($options->gravatarEnable && XenForo_Model_Avatar::gravatarExists($data['email'])) {
             $writer->set('gravatar', $user_data['email']);
@@ -2323,7 +2835,7 @@ class XenAPI {
 
         if ($writer->hasErrors()) {
             // The registration failed, return errors.
-            return array('error' => 2, 'errors' => $writer->getErrors());
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
         }
 
         // Save the user to the database.
@@ -2331,9 +2843,12 @@ class XenAPI {
          
         // Get the User as a variable:
         $user = $writer->getMergedData();
-         
-        // Log the IP of the user that registered.
-        XenForo_Model_Ip::log($user['user_id'], 'user', $user['user_id'], 'register', $ip_address);
+
+        // Check if IP is set.
+        if (!empty($user_data['ip_address'])) {
+            // Log the IP of the user that registered.
+            XenForo_Model_Ip::log($user['user_id'], 'user', $user['user_id'], 'register', $ip_address);
+        }
          
         return $user;
     }
