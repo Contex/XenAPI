@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.3.dev';
+    const VERSION = '1.3';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     /**
@@ -1747,7 +1747,7 @@ class RestAPI {
                 }
 
                 foreach ($additional_parameters as $additional_parameter) {
-                    // Check if the required parameter is set and not empty.
+                    // Check if the additional parameter is set and not empty.
                     $this->checkRequestParameter($additional_parameter, FALSE);
 
                     if ($this->getRequest($additional_parameter)) {
