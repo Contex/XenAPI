@@ -86,8 +86,9 @@ class RestAPI {
         'getalerts'        => 'private', 
         'getavatar'        => 'public',
         'getconversations' => 'private',
-        'getnode'          => 'public',
         'getgroup'         => 'public', 
+        'getnode'          => 'public',
+        'getnodes'         => 'public',
         'getpost'          => 'public',
         'getposts'         => 'public',
         'getprofilepost'   => 'authenticated',
@@ -129,7 +130,8 @@ class RestAPI {
         19 => 'Could not find a {ERROR} with ID "{ERROR2}"',
         20 => '{ERROR} not have permissions to view {ERROR2}',
         21 => 'The "{ERROR}" argument has to be a number',
-        22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})"'
+        22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})"',
+        23 => 'The argument for "node_type", "{ERROR}", was not found in the list available node type list: "({ERROR2})"'
     );
 
     // Specific errors related to user actions.
@@ -1212,6 +1214,51 @@ class RestAPI {
                     $this->sendResponse($node);
                 }
                 break;
+            case 'getnodes':
+                /**
+                * Returns a list of nodes.
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getNodes&hash=USERNAME:HASH
+                *   - api.php?action=getNodes&hash=API_KEY
+                */
+                // Init variables.
+                $this->setLimit(10);
+                $fetch_options = array('limit' => $this->limit);
+
+                // Check if request has node_type.
+                if ($this->hasRequest('node_type')) {
+                    if (!$this->getRequest('node_type')) {
+                        // Throw error if the 'node_type' argument is set but empty.
+                        $this->throwError(1, 'node_type');
+                    }
+
+                    // Set the node_type.
+                    $node_type = strtolower($this->getRequest('node_type'));
+
+                    // Check if the node type that is set exists.
+                    if (!in_array($node_type, $this->getXenAPI()->getNodeTypes()) && $node_type != 'all') {
+                        // Node type could not be found in the node type list, throw error.
+                        $this->throwError(23, $this->getRequest('node_type'), implode(', ', $this->getXenAPI()->getNodeTypes()));
+                    }
+                } else {
+                    $node_type = 'all';
+                }
+
+                // Check if the order by argument is set.
+                /*$order_by_field = $this->checkOrderBy(array('title', 'post_date', 'view_count', 'reply_count', 'first_post_likes', 'last_post_date'));
+
+                // Add the order by options to the fetch options.
+                if ($this->hasRequest('order_by')) {
+                    $fetch_options['order']          = $order_by_field;
+                    $fetch_options['orderDirection'] = $this->order;
+                }*/
+
+                // Get the nodes.
+                $nodes = $this->getXenAPI()->getNodes($node_type, $fetch_options, $this->getUser());
+
+                // Send the response.
+                $this->sendResponse(array('count' => count($nodes), 'nodes' => $nodes));
             case 'getpost':
                 /**
                 * Returns the post information depending on the 'value' argument.
@@ -2485,6 +2532,58 @@ class XenAPI {
     }
 
     /**
+    * Returns a list of nodes.
+    */
+    public function getNodes($node_type = 'all', $fetchOptions = array('limit' => 10), $user = NULL) {
+        $this->getModels()->checkModel('node', XenForo_Model::create('XenForo_Model_Node'));
+
+        // Get the node list.
+        $node_list = $this->getModels()->getModel('node')->getAllNodes();
+
+        // Check if the node type that is set exists.
+        if ($node_type == NULL || !in_array($node_type, $this->getNodeTypes())) {
+            $node_type = 'all';
+        }
+        
+        // Loop through the nodes to check if the user has permissions to view the thread.
+        foreach ($node_list as $key => &$node) {      
+            if ($node_type != 'all' && strtolower($node['node_type_id']) != $node_type) {
+                // Node type does not equal the requested node type, unset the node and continue the loop.
+                unset($node_list[$key]);
+                continue;
+            }
+
+            // Check if user is set.
+            if ($user != NULL) {
+                // Get the node.
+                $node = $this->getNode($node['node_id'], array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
+                $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
+
+                // User does not have permission to view this nodes, unset it and continue the loop.
+                if (!$this->canViewNode($user, $node, $permissions)) {
+                    unset($node_list[$key]);
+                    continue;
+                }
+
+                // Unset the permissions values.
+                unset($node_list[$key]['node_permission_cache']);
+            } else {
+                // Get the node.
+                $node = $this->getNode($node['node_id'], $fetchOptions);
+            }
+        }
+        return $node_list;
+    }
+
+    /**
+    * TODO
+    */
+    public function getNodeTypes() {
+        $this->getModels()->checkModel('node', XenForo_Model::create('XenForo_Model_Node'));
+        return array_keys(array_change_key_case($this->getModels()->getModel('node')->getAllNodeTypes(), CASE_LOWER));
+    }
+
+    /**
     * Returns the Page array of the $node_id parameter.
     */
     public function getPage($node_id, $fetchOptions = array()) {
@@ -2648,7 +2747,7 @@ class XenAPI {
         return $this->getModels()->getModel('profile_post')->getProfilePostById($profile_post_id, $fetchOptions);
     }
 
-     /**
+    /**
     * Returns a list of profile posts.
     */
     public function getProfilePosts($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
