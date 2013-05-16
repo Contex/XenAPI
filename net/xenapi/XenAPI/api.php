@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.3.dev';
+    const VERSION = '1.3';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     /**
