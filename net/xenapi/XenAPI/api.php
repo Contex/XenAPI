@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.3.dev';
+    const VERSION = '1.3.1.dev';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     /**
@@ -86,6 +86,7 @@ class RestAPI {
         'getalerts'        => 'private', 
         'getavatar'        => 'public',
         'getconversations' => 'private',
+        'getnode'          => 'public',
         'getgroup'         => 'public', 
         'getpost'          => 'public',
         'getposts'         => 'public',
@@ -1164,6 +1165,51 @@ class RestAPI {
                 } else {
                     // Group was found, send response.
                     $this->sendResponse($group);
+                }
+                break;
+            case 'getnode':
+                /**
+                * Returns the node information depending on the 'value' argument.
+                *
+                * NOTE: Only node ID's can be used for the 'value' parameter.
+                *       Node ID's can be found by using the 'getNodes' action.
+                *
+                *       The user needs permission to see the thread if the request is
+                *       using a user hash and not an API key.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getNode&value=4&hash=USERNAME:HASH
+                *   - api.php?action=getNode&value=4&hash=API_KEY
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' argument has not been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' argument is set but empty.
+                    $this->throwError(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                // Try to grab the node from XenForo.
+                $node = $this->getXenAPI()->getNode($string);
+                if ($node == NULL) {
+                     // Could not find the node, throw error.
+                    $this->throwError(19, 'node', $string);
+                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewNode($this->getUser(), $node)) {
+                    if (isset($this->grab_as)) {
+                        // Thread was found but the 'grab_as' user is not permitted to view the node.
+                        $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this node');
+                    } else { 
+                        // Thread was found but the user is not permitted to view the node.
+                        $this->throwError(20, 'You do', 'this node');
+                    }
+                } else if ($this->hasAPIKey() && isset($this->grab_as) && !$this->getXenAPI()->canViewNode($this->getUser(), $node)) {
+                    // Thread was found but the 'grab_as' user is not permitted to view the node.
+                    $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this node');
+                } else {
+                     // Thread was found, and the request was permitted.
+                    $this->sendResponse($node);
                 }
                 break;
             case 'getpost':
@@ -2400,19 +2446,81 @@ class XenAPI {
     }
 
     /**
-    * Returns the Forum array of the $forum_id parameter.
+    * Returns the Node array of the $node_id parameter.
     */
-    public function getForum($forum_id) {
+    public function getForum($node_id, $fetchOptions = array()) {
         $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
-        return $this->getModels()->getModel('forum')->getForumByID($forum_id);
+        return $this->getModels()->getModel('forum')->getForumById($node_id, $fetchOptions);
     }
+
+    /**
+    * Returns the Link Forum array of the $node_id parameter.
+    */
+    public function getLinkForum($node_id, $fetchOptions = array()) {
+        $this->getModels()->checkModel('link_forum', XenForo_Model::create('XenForo_Model_LinkForum'));
+        return $this->getModels()->getModel('link_forum')->getLinkForumById($node_id, $fetchOptions);
+    }
+
 
     /**
     * Returns the Node array of the $node_id parameter.
     */
-    public function getNode($node_id) {
+    public function getNode($node_id, $fetchOptions = array()) {
         $this->getModels()->checkModel('node', XenForo_Model::create('XenForo_Model_Node'));
-        return $this->getModels()->getModel('node')->getNodeByID($node_id);
+        $node = $this->getModels()->getModel('node')->getNodeById($node_id, $fetchOptions);
+        if (!empty($node['node_type_id'])) {
+            switch (strtolower($node['node_type_id'])) {
+                case 'forum':
+                    return $this->getForum($node['node_id'], $fetchOptions);
+                case 'linkforum':
+                    return $this->getLinkForum($node['node_id'], $fetchOptions);
+                case 'page':
+                    return $this->getPage($node['node_id'], $fetchOptions);
+                case 'category':
+                default:
+                    return $node;
+            }
+        }
+        return $node;
+    }
+
+    /**
+    * Returns the Page array of the $node_id parameter.
+    */
+    public function getPage($node_id, $fetchOptions = array()) {
+        $this->getModels()->checkModel('page', XenForo_Model::create('XenForo_Model_Page'));
+        return $this->getModels()->getModel('page')->getPageById($node_id, $fetchOptions);
+    }
+
+    /**
+    * TODO
+    */
+    public function canViewNode($user, $node, $permissions = NULL) {
+        // Check if the forum model has initialized.
+        if (!empty($node['node_type_id'])) {
+            if ($permissions == NULL) {
+                // Let's grab the permissions.
+                $node = $this->getNode($node['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+
+                // Unserialize the permissions.
+                $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
+            }
+            switch (strtolower($node['node_type_id'])) {
+                case 'category':
+                    $this->getModels()->checkModel('category', XenForo_Model::create('XenForo_Model_Category'));
+                    return $this->getModels()->getModel('category')->canViewCategory($node, $null, $permissions, $user->getData());
+                case 'forum':
+                    $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
+                    return $this->getModels()->getModel('forum')->canViewForum($node, $null, $permissions, $user->getData());
+                case 'linkforum':
+                    $this->getModels()->checkModel('link_forum', XenForo_Model::create('XenForo_Model_LinkForum'));
+                    return $this->getModels()->getModel('link_forum')->canViewLinkForum($node, $null, $permissions, $user->getData());
+                case 'page':
+                    $this->getModels()->checkModel('page', XenForo_Model::create('XenForo_Model_Page'));
+                    return $this->getModels()->getModel('page')->canViewPage($node, $null, $permissions, $user->getData());
+            }
+        }
+        return FALSE;
     }
 
     /**
