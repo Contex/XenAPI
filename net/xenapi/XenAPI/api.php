@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.3.1.dev';
+    const VERSION = '1.3.2.dev';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     /**
@@ -1612,6 +1612,7 @@ class RestAPI {
                 *   - api.php?action=getThread&value=820&hash=USERNAME:HASH
                 *   - api.php?action=getThread&value=820&hash=API_KEY
                 */
+                $fetchOptions = array();
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
@@ -1622,8 +1623,27 @@ class RestAPI {
                     break;
                 }
                 $string = $this->getRequest('value');
+
+                // Check if request has grab_content.
+                if ($this->hasRequest('grab_content')) {
+                    $fetchOptions['grab_content'] = TRUE;
+
+                    // Check if request has content_limit.
+                    if ($this->hasRequest('content_limit')) {
+                        if (!$this->getRequest('content_limit')) {
+                            // Throw error if the 'content_limit' argument is set but empty.
+                            $this->throwError(1, 'content_limit');
+                            break;
+                        } else if (!is_numeric($this->getRequest('content_limit'))) {
+                            // Throw error if the 'content_limit' argument is set but not a number.
+                            $this->throwError(21, 'content_limit');
+                        }
+                        $fetchOptions['content_limit'] = $this->getRequest('content_limit');
+                    }
+                }
+
                 // Try to grab the thread from XenForo.
-                $thread = $this->getXenAPI()->getThread($string);
+                $thread = $this->getXenAPI()->getThread($string, $fetchOptions, $this->getUser());
                 if ($thread == NULL) {
                      // Could not find the thread, throw error.
                     $this->throwError(19, 'thread', $string);
@@ -1695,6 +1715,25 @@ class RestAPI {
                     // Add the node ID to the query conditions.
                     $conditions['node_id'] = $this->getRequest('node_id');
                 }
+
+                // Check if request has grab_content.
+                if ($this->hasRequest('grab_content')) {
+                    $fetch_options['grab_content'] = TRUE;
+
+                    // Check if request has content_limit.
+                    if ($this->hasRequest('content_limit')) {
+                        if (!$this->getRequest('content_limit')) {
+                            // Throw error if the 'content_limit' argument is set but empty.
+                            $this->throwError(1, 'content_limit');
+                            break;
+                        } else if (!is_numeric($this->getRequest('content_limit'))) {
+                            // Throw error if the 'content_limit' argument is set but not a number.
+                            $this->throwError(21, 'content_limit');
+                        }
+                        $fetch_options['content_limit'] = $this->getRequest('content_limit');
+                    }
+                }
+
 
                 // Check if the order by argument is set.
                 $order_by_field = $this->checkOrderBy(array('title', 'post_date', 'view_count', 'reply_count', 'first_post_likes', 'last_post_date'));
@@ -2846,9 +2885,28 @@ class XenAPI {
     /**
     * Returns the Thread array of the $thread_id parameter.
     */
-    public function getThread($thread_id, $fetch_options = array()) {
+    public function getThread($thread_id, $fetchOptions = array(), $user = NULL) {
+        if (isset($fetchOptions['grab_content'])) {
+            $grab_content = TRUE;
+            unset($fetchOptions['grab_content']);
+        }
+        if (isset($fetchOptions['content_limit'])) {
+            $content_limit = $fetchOptions['content_limit'];
+            unset($fetchOptions['content_limit']);
+        } else {
+            $content_limit = 0;
+        }
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
-        return $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetch_options);
+        $thread = $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetchOptions);
+        if (!$thread) {
+            return $thread;
+        }
+        if (isset($grab_content)) {
+            $posts = $this->getPosts(array('thread_id' => $thread_id), array('limit' => $content_limit), $user);
+            $thread['content'] = array('count' => count($posts), 'content' => $posts);
+            unset($posts);
+        }
+        return $thread;
     }
 
     /**
@@ -2856,20 +2914,40 @@ class XenAPI {
     */
     public function getThreads($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
-        if ($user == NULL) {
+        if (isset($fetchOptions['grab_content'])) {
+            $grab_content = TRUE;
+            unset($fetchOptions['grab_content']);
+        }
+        if (isset($fetchOptions['content_limit'])) {
+            $content_limit = $fetchOptions['content_limit'];
+            unset($fetchOptions['content_limit']);
+        }else {
+            $content_limit = 0;
+        }
+        if ($user == NULL && !isset($grab_content)) {
             $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
             return $thread_list;
+        } else if ($user != NULL) {
+            $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
+        } else {
+            $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
         }
-        $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
         // Loop through the threads to check if the user has permissions to view the thread.
-        foreach ($thread_list as $key => $thread) {
-            $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
-            if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
-                // User does not have permission to view this thread, unset it and continue the loop.
-                unset($thread_list[$key]);
+        foreach ($thread_list as $key => &$thread) {
+            if ($user != NULL) {
+                $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+                if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
+                    // User does not have permission to view this thread, unset it and continue the loop.
+                    unset($thread_list[$key]);
+                }
+                // Unset the permissions values.
+                unset($thread_list[$key]['node_permission_cache']);
             }
-            // Unset the permissions values.
-            unset($thread_list[$key]['node_permission_cache']);
+            if (isset($grab_content)) {
+                $posts = $this->getPosts(array('thread_id' => $thread['thread_id']), array('limit' => $content_limit), $user);
+                $thread['content'] = array('count' => count($posts), 'content' => $posts);
+                unset($posts);
+            }
         }
         return $thread_list;
     }
