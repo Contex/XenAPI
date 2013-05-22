@@ -1630,7 +1630,7 @@ class RestAPI {
 
                     // Check if request has content_limit.
                     if ($this->hasRequest('content_limit')) {
-                        if (!$this->getRequest('content_limit')) {
+                        if (!$this->getRequest('content_limit') && (is_numeric($this->getRequest('content_limit')) && $this->getRequest('content_limit') != 0)) {
                             // Throw error if the 'content_limit' argument is set but empty.
                             $this->throwError(1, 'content_limit');
                             break;
@@ -1722,7 +1722,7 @@ class RestAPI {
 
                     // Check if request has content_limit.
                     if ($this->hasRequest('content_limit')) {
-                        if (!$this->getRequest('content_limit')) {
+                        if (!$this->getRequest('content_limit') && (is_numeric($this->getRequest('content_limit')) && $this->getRequest('content_limit') != 0)) {
                             // Throw error if the 'content_limit' argument is set but empty.
                             $this->throwError(1, 'content_limit');
                             break;
@@ -2894,7 +2894,7 @@ class XenAPI {
             $content_limit = $fetchOptions['content_limit'];
             unset($fetchOptions['content_limit']);
         } else {
-            $content_limit = 0;
+            $content_limit = 10;
         }
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
         $thread = $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetchOptions);
@@ -2922,7 +2922,7 @@ class XenAPI {
             $content_limit = $fetchOptions['content_limit'];
             unset($fetchOptions['content_limit']);
         }else {
-            $content_limit = 0;
+            $content_limit = 10;
         }
         if ($user == NULL && !isset($grab_content)) {
             $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
