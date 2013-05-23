@@ -150,7 +150,7 @@ class dap_xenapi {
 
 		// Set the variables of the DAP user.
 		$user_data = array(
-			'user' => $username
+			'user' => $username . ' ' . $user_id
 		);
 
 		// Split the parameters into an array.
@@ -278,7 +278,7 @@ class dap_xenapi {
 
 				// Init the edit data.
 				$edit_data = array(
-					'user' 			=> $user_data['username'],
+					'user' 		 => $user_data['username'],
 					'add_groups' => $user_data['add_groups']
 				);
 
