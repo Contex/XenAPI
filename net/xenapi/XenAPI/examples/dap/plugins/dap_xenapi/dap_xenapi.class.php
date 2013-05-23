@@ -1,20 +1,20 @@
 <?php
 /*
- * This file is part of XenAPI <http://www.xenapi.net/>.
- *
- * XenAPI is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * XenAPI is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+This file is part of DAP Xenforo Plugin <http://www.xenapi.net/dap>.
+
+DAP Xenforo Plugin is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+DAP Xenforo Plugin is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with DAP Xenforo Plugin.  If not, see <http://www.gnu.org/licenses/>.
+*/
 class dap_xenapi {
 	const PARAMETERS_FIELDS  = 'dap_xenapi:API_KEY:PROTOCOL:API_URL:GROUP';
 	const PARAMETERS_EXAMPLE = 'dap_xenapi:dd990jvn190n2jr0v12:http:xenapi.net/api.php:5';
