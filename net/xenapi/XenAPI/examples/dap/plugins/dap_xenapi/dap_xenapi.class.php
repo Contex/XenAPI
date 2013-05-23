@@ -287,8 +287,9 @@ class dap_xenapi {
 			);
 
 			// Check if user already exist.
-			if ($api_response['user_error_id'] == 40) 
-			{
+			if ($api_response['user_error_id'] == 40 
+				&& !empty($user_data['add_groups'])
+			) {
 				// User exist, let's edit the user instead.
 				$this->log(
 					'handleAPIError', 
@@ -298,21 +299,9 @@ class dap_xenapi {
 
 				// Init the edit data.
 				$edit_data = array(
-					'user' => $user_data['username']
+					'user'       => $user_data['username'],
+					'add_groups' => $user_data['add_groups']
 				);
-
-				// Check if the add_groups parameter is set.
-				if (!empty($user_data['add_groups'])) 
-				{
-					// Log that we found a group identifier.
-					$this->log(
-						'handleAPIError', 
-						'Found group: ' . $user_data['add_groups']
-					);
-
-					// Set the group.
-					$edit_data['add_groups'] = $user_data['add_groups'];
-				}
 
 				// Check if the custom field identifier parameter is set.
 				if (!empty($user_data['custom_field_identifier'])) 
@@ -327,10 +316,8 @@ class dap_xenapi {
 					// Set the custom field identifier.
 					$edit_data['custom_field_identifier'] = $user_data['custom_field_identifier'];
 				}
-
 				// Execute the API edit request.
-				$this->apiEditUser($api_url, $api_key, $edit_data);
-			}
+				$this->apiEditUser($api_url, $api_key, $edit_data);			}
 
 			// Check if the user error field is set.
 			if (!empty($api_response['user_error_field']))
