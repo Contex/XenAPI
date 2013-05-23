@@ -2728,26 +2728,28 @@ class XenAPI {
             ', $limitOptions['limit'], $limitOptions['offset']
         ), 'post_id');
 
-        // Loop through the posts to unset some values that are not needed.
-        foreach ($post_list as $key => $post) {
-            if ($user != NULL) {
-                // Check if the user has permissions to view the post.
-                $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
-                if (!$this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData())) {
-                    // User does not have permission to view this post, unset it and continue the loop.
-                    unset($post_list[$key]);
-                    continue;
+        if ($user != NULL || isset($fetchOptions['join'])) {
+            // Loop through the posts to unset some values that are not needed.
+            foreach ($post_list as $key => $post) {
+                if ($user != NULL) {
+                    // Check if the user has permissions to view the post.
+                    $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
+                    if (!$this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData())) {
+                        // User does not have permission to view this post, unset it and continue the loop.
+                        unset($post_list[$key]);
+                        continue;
+                    }
+                    // Unset the permissions values.
+                    unset($post_list[$key]['node_permission_cache']);
                 }
-                // Unset the permissions values.
-                unset($post_list[$key]['node_permission_cache']);
-            }
 
-            if (isset($fetchOptions['join'])) {
-                // Unset some not needed thread values.
-                Post::stripThreadValues($post_list[$key]);
+                if (isset($fetchOptions['join'])) {
+                    // Unset some not needed thread values.
+                    Post::stripThreadValues($post_list[$key]);
+                }
             }
         }
-        return $post_list;
+        return array_values($post_list);
     }
 
     /**
@@ -2863,7 +2865,7 @@ class XenAPI {
         }
 
         // Return the profile post list.
-        return $profile_post_list;
+        return array_values($profile_post_list);
     }
 
     /**
@@ -2921,7 +2923,7 @@ class XenAPI {
         if (isset($fetchOptions['content_limit'])) {
             $content_limit = $fetchOptions['content_limit'];
             unset($fetchOptions['content_limit']);
-        }else {
+        } else {
             $content_limit = 1;
         }
         if ($user == NULL && !isset($grab_content)) {
@@ -2932,24 +2934,26 @@ class XenAPI {
         } else {
             $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
         }
-        // Loop through the threads to check if the user has permissions to view the thread.
-        foreach ($thread_list as $key => &$thread) {
-            if ($user != NULL) {
-                $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
-                if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
-                    // User does not have permission to view this thread, unset it and continue the loop.
-                    unset($thread_list[$key]);
+        if ($user != NULL || isset($grab_content)) {
+            // Loop through the threads to check if the user has permissions to view the thread.
+            foreach ($thread_list as $key => &$thread) {
+                if ($user != NULL) {
+                    $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+                    if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
+                        // User does not have permission to view this thread, unset it and continue the loop.
+                        unset($thread_list[$key]);
+                    }
+                    // Unset the permissions values.
+                    unset($thread_list[$key]['node_permission_cache']);
                 }
-                // Unset the permissions values.
-                unset($thread_list[$key]['node_permission_cache']);
-            }
-            if (isset($grab_content)) {
-                $posts = $this->getPosts(array('thread_id' => $thread['thread_id']), array('limit' => $content_limit), $user);
-                $thread['content'] = array('count' => count($posts), 'content' => $posts);
-                unset($posts);
+                if (isset($grab_content)) {
+                    $posts = $this->getPosts(array('thread_id' => $thread['thread_id']), array('limit' => $content_limit), $user);
+                    $thread['content'] = array('count' => count($posts), 'content' => $posts);
+                    unset($posts);
+                }
             }
         }
-        return $thread_list;
+        return array_values($thread_list);
     }
 
 
