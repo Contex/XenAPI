@@ -2894,7 +2894,7 @@ class XenAPI {
             $content_limit = $fetchOptions['content_limit'];
             unset($fetchOptions['content_limit']);
         } else {
-            $content_limit = 10;
+            $content_limit = 1;
         }
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
         $thread = $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetchOptions);
@@ -2922,7 +2922,7 @@ class XenAPI {
             $content_limit = $fetchOptions['content_limit'];
             unset($fetchOptions['content_limit']);
         }else {
-            $content_limit = 10;
+            $content_limit = 1;
         }
         if ($user == NULL && !isset($grab_content)) {
             $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
