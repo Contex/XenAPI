@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with DAP Xenforo Plugin.  If not, see <http://www.gnu.org/licenses/>.
 */
 class dap_xenapi {
-	const PARAMETERS_FIELDS  = 'dap_xenapi:API_KEY:PROTOCOL:API_URL:GROUP';
+	const PARAMETERS_FIELDS  = 'dap_xenapi:API_KEY:PROTOCOL:API_URL';
 	/**
 	* Default constructor.
 	*/
@@ -88,8 +88,18 @@ class dap_xenapi {
 			return $e->getMessage();
 		}
 
-		// Set which group the user should have.
-		$user_data['add_groups'] = $additional_parameters['group'];
+		// Check if the group parameter is set.
+		if (!empty($additional_parameters['group'])) 
+		{
+			// Log that we found a custom field identifier.
+			$this->log(
+				'register', 
+				'Found group: ' . $additional_parameters['group']
+			);
+
+			// Set which group the user should have.
+			$user_data['add_groups'] = $additional_parameters['group'];
+		}
 
 		// Check if the custom field identifier parameter is set.
 		if (!empty($additional_parameters['custom_field_identifier'])) 
@@ -183,8 +193,18 @@ class dap_xenapi {
 			return $e->getMessage();
 		}
 
-		// Set which group to remove.
-		$user_data['remove_groups'] = $additional_parameters['group'];
+		// Check if the group parameter is set.
+		if (!empty($additional_parameters['group'])) 
+		{
+			// Log that we found a custom field identifier.
+			$this->log(
+				'unregister', 
+				'Found group: ' . $additional_parameters['group']
+			);
+
+			// Set which group to remove.
+			$user_data['remove_groups'] = $additional_parameters['group'];
+		}
 
 		// Check if the custom field identifier parameter is set.
 		if (!empty($additional_parameters['custom_field_identifier'])) 
@@ -278,9 +298,21 @@ class dap_xenapi {
 
 				// Init the edit data.
 				$edit_data = array(
-					'user' 		 => $user_data['username'],
-					'add_groups' => $user_data['add_groups']
+					'user' => $user_data['username']
 				);
+
+				// Check if the add_groups parameter is set.
+				if (!empty($user_data['add_groups'])) 
+				{
+					// Log that we found a group identifier.
+					$this->log(
+						'handleAPIError', 
+						'Found group: ' . $user_data['add_groups']
+					);
+
+					// Set the group.
+					$edit_data['add_groups'] = $user_data['add_groups'];
+				}
 
 				// Check if the custom field identifier parameter is set.
 				if (!empty($user_data['custom_field_identifier'])) 
@@ -329,30 +361,28 @@ class dap_xenapi {
 		// Init the additional parameters.
 		$additional_parameters = array();
 
-		// Check if the group value is set.
-		if (!isset($data[4]))
+		// Check if group parameter is set.
+		if (isset($data[4]))
 		{
-			// Group value is not set, throw error message.
-			throw Exception(
-				'Missing group ID/name. Params should be ' 
-		  		. '(' . self::PARAMETERS_FIELDS . ':GROUP), but is (' 
-	  			. $parameters . ')'
-			);
-		}
-		else if (empty($data[4]))
-		{
-	 		// Group value is set but empty, throw error message.
-			throw Exception(
-				'Group ID/name is empty. Params should be ' 
-			  	. '(' . self::PARAMETERS_FIELDS . '), but is (' 
-		  		. $parameters . ')'
-			);
+			if (empty($data[4]) && !is_numeric($data[4]))
+			{
+		 		// Group is set but empty, throw error message.
+				throw Exception(
+					'Group ID is empty. Params should be ' 
+				  	. '(' . self::PARAMETERS_FIELDS . ':GROUP), but is (' 
+			  		. $parameters . ')'
+ 				);
+			}
+
+			// Check if group ID is numeric and larger than 0 (we ignore 0).
+			if (is_numeric($data[4]) && $data[4] > 0)
+			{
+				// Set the group.
+				$additional_parameters['group'] = $data[4];
+			}
 		}
 
-		// Set the group.
-		$additional_parameters['group'] = $data[4];
-
-		// Check if the custom identifier field value is set.
+		// Check if the custom identifier field parameter is set.
 		if (isset($data[5]))
 		{
 			if (empty($data[5]))
@@ -363,7 +393,7 @@ class dap_xenapi {
 				throw Exception(
 					'Custom identifier field is set but empty. Params should be' 
  				  	. ' (' . self::PARAMETERS_FIELDS 
-			  		. ':CUSTOM_USER_FIELD), but is (' . $parameters . ')'
+			  		. ':GROUP:CUSTOM_USER_FIELD), but is (' . $parameters . ')'
  				);
 			}
 
