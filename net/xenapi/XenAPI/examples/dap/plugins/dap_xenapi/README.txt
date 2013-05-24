@@ -1,6 +1,6 @@
 === DAP Xenforo Plugin ===
-License: GPLv3 or later
-License URI: http://www.gnu.org/licenses/gpl-3.0-standalone.html
+License: LGPLv3 or later
+License URI: http://www.gnu.org/licenses/lgpl-3.0-standalone.html
 Version: 1.0
 
 DAP Xenforo Plugin allows to automatically register DAP users with a XenForo installation.
