@@ -80,6 +80,7 @@ class RestAPI {
     private $actions = array(
         'authenticate'     => 'public',
         'createpost'       => 'authenticated',
+        'createthread'     => 'authenticated',
         'edituser'         => 'api_key',
         'getactions'       => 'public', 
         'getaddon'         => 'administrator',
@@ -150,7 +151,7 @@ class RestAPI {
         10 => 'Missing required a required parameter',
         11 => 'The remove_groups parameter needs to be an array and have at least 1 item',
         12 => 'The user is not a member of the group(s)',
-        13 => 'An user is required to create a post reply',
+        13 => 'An user is required to create a post/thread',
         14 => 'The user does not have permissions to post in this thread',
         30 => 'Missing required registration fields',
         31 => 'Password invalid',
@@ -788,11 +789,12 @@ class RestAPI {
                     $this->throwError(1, 'message');
                     break;
                 }
+
                 $post_data = array(
                     'thread_id' => $thread['thread_id'],
-                    'title'     => $this->getRequest('title'),
                     'message'   => $this->getRequest('message')
                 );
+
                 // Create the post object.
                 $post_results = $this->xenAPI->createPost($this->getUser(), $post_data);
 
@@ -834,6 +836,124 @@ class RestAPI {
                 } else {
                     // Post creation was successful, return results.
                     $this->sendResponse($post_results);
+                }
+                break;
+            case 'createthread': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                    // The 'grab_as' argument has not been set, throw error.
+                    $this->throwError(3, 'grab_as');
+                    break;
+                } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
+                    // Throw error if the 'grab_as' argument is set but empty.
+                    $this->throwError(1, 'grab_as');
+                    break;
+                } 
+
+                if (!$this->hasRequest('node_id')) {
+                    // The 'node_id' argument has not been set, throw error.
+                    $this->throwError(3, 'node_id');
+                    break;
+                } else if (!$this->getRequest('node_id')) {
+                    // Throw error if the 'node_id' argument is set but empty.
+                    $this->throwError(1, 'node_id');
+                    break;
+                }
+
+                // Try to grab the node from XenForo.
+                $node = $this->getXenAPI()->getNode($this->getRequest('node_id'), array(), $this->getUser());
+                if ($node == NULL) {
+                     // Could not find the node, throw error.
+                    $this->throwError(19, 'node', $this->getRequest('node_id'));
+                }
+
+                if (!$this->hasRequest('title')) {
+                    // The 'title' argument has not been set, throw error.
+                    $this->throwError(3, 'title');
+                    break;
+                } else if (!$this->getRequest('title')) {
+                    // Throw error if the 'title' argument is set but empty.
+                    $this->throwError(1, 'title');
+                    break;
+                }
+
+                if (!$this->hasRequest('message')) {
+                    // The 'message' argument has not been set, throw error.
+                    $this->throwError(3, 'message');
+                    break;
+                } else if (!$this->getRequest('message')) {
+                    // Throw error if the 'message' argument is set but empty.
+                    $this->throwError(1, 'message');
+                    break;
+                }
+
+                $thread_data = array();
+
+                // Array of additional parameters.
+                $additional_parameters = array('prefix_id', 'discussion_open', 'sticky');
+
+                foreach ($additional_parameters as $additional_parameter) {
+                    // Check if the additional parameter is set and not empty.
+                    $this->checkRequestParameter($additional_parameter, FALSE);
+
+                    if ($this->getRequest($additional_parameter)) {
+                        // Set the request value.
+                        $thread_data[$additional_parameter] = $this->getRequest($additional_parameter);
+                    }
+                }
+
+                $thread_data += array(
+                    'node_id' => $node['node_id'],
+                    'title'     => $this->getRequest('title'),
+                    'message'   => $this->getRequest('message')
+                );
+
+                // Create the thread object.
+                $thread_results = $this->xenAPI->createThread($this->getUser(), $thread_data);
+
+                if (!empty($thread_results['error'])) {
+                    // The thread creation failed, process errors.
+                    if (is_array($thread_results['errors'])) {
+                        // The error message was an array, loop through the messages.
+                        $error_keys = array();
+                        foreach ($thread_results['errors'] as $error_field => $error) {
+                            if (!($error instanceof XenForo_Phrase)) {
+                                $thread_error = array(
+                                    'error_id' => 1,
+                                    'error_key' => 'field_not_recognised', 
+                                    'error_field' => $error_field, 
+                                    'error_phrase' => $error
+                                );
+                                $this->throwError(self::USER_ERROR, $thread_error, 'creating a new thread');
+                            }
+
+                            // Let's init the thread creation error array.
+                            $thread_error = array(
+                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
+                                'error_key' => $error->getPhraseName(), 
+                                'error_field' => $error_field, 
+                                'error_phrase' => $error->render()
+                            );
+
+                            $this->throwError(self::USER_ERROR, $thread_error, 'creating a new thread');
+                        }
+                    } else {
+                        $thread_error = array(
+                            'error_id' => $thread_results['error'],
+                            'error_key' => 'general_user_post_creation_error', 
+                            'error_phrase' => $thread_results['errors']
+                        );
+                        $this->throwError(self::USER_ERROR, $thread_error, 'creating a new thread');
+                        // Throw error message.
+                    }
+                } else {
+                    // Thread creation was successful, return results.
+                    $this->sendResponse($thread_results);
                 }
                 break;
             case 'edituser':
@@ -2238,9 +2358,92 @@ class XenAPI {
 
         $this->getModels()->checkModel('thread_watch', XenForo_Model::create('XenForo_Model_ThreadWatch'));
 
-        $this->getModels()->getModel('thread_watch')->setThreadWatchStateWithUserDefault($user['user_id'], $thread['thread_id'], $user['default_watch_state']);
+        $this->getModels()->getModel('thread_watch')->setThreadWatchStateWithUserDefault($user->data['user_id'], $thread['thread_id'], $user->data['default_watch_state']);
 
         return $post;
+    }
+
+    public function createThread($user, $thread_data = array()) {
+        // TODO: Add support for polls. 
+       if ($user == NULL) {
+            // An user is required to create a new thread.
+            return array('error' => 13, 'errors' => 'User is required to create a thread.');
+        }
+
+        $forum = $this->getForum($thread_data['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+
+        $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
+
+        // Check if user can view the forum, if not; it's most likely private or the user has not access to the forum.
+        if (!$this->canViewNode($user, $forum, $permissions) || !$this->canPostThreadInForum($user, $forum, $permissions)) {
+            // User does not have permission to post in this thread.
+            return array('error' => 14, 'errors' => 'The user does not have permissions to create a new thread in this forum.');
+        }
+
+        $input['title'] = $thread_data['title'];
+
+        $input['message'] = XenForo_Helper_String::autoLinkBbCode($thread_data['message']);
+
+        if (!empty($thread_data['prefix_id'])) {
+            $input['prefix_id'] = $thread_data['prefix_id'];
+        }
+
+        $this->getModels()->checkModel('thread_prefix', XenForo_Model::create('XenForo_Model_ThreadPrefix'));
+
+        if (!$this->getModels()->getModel('thread_prefix')->verifyPrefixIsUsable($input['prefix_id'], $thread_data['node_id'])) {
+            $input['prefix_id'] = 0; // not usable, just blank it out
+        }
+
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_Discussion_Thread');
+        $writer->bulkSet(array(
+            'user_id' => $user->data['user_id'],
+            'username' => $user->data['username'],
+            'title' => $input['title'],
+            'prefix_id' => $input['prefix_id'],
+            'node_id' => $thread_data['node_id']
+        ));
+
+        $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+
+        // discussion state changes instead of first message state
+        $writer->set('discussion_state', $this->getModels()->getModel('post')->getPostInsertMessageState(array(), $forum));
+
+        $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
+
+        // discussion open state - moderator permission required
+        if (!empty($thread_data['discussion_open']) && $this->getModels()->getModel('forum')->canLockUnlockThreadInForum($forum, $null, $permissions, $user->getData())) {
+            $writer->set('discussion_open', $thread_data['discussion_open']);
+        }
+
+        // discussion sticky state - moderator permission required
+        if (!empty($thread_data['sticky']) && $this->getModels()->getModel('forum')->canStickUnstickThreadInForum($forum, $null, $permissions, $user->getData())) {
+            $writer->set('sticky', $thread_data['sticky']);
+        }
+
+        $postWriter = $writer->getFirstMessageDw();
+        $postWriter->set('message', $input['message']);
+        $postWriter->setExtraData(XenForo_DataWriter_DiscussionMessage_Post::DATA_FORUM, $forum);
+
+        $writer->setExtraData(XenForo_DataWriter_Discussion_Thread::DATA_FORUM, $forum);
+
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The thread creation failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        $writer->save();
+
+        $thread = $writer->getMergedData();
+
+        $this->getModels()->checkModel('thread_watch', XenForo_Model::create('XenForo_Model_ThreadWatch'));
+        $this->getModels()->getModel('thread_watch')->setThreadWatchStateWithUserDefault($user->data['user_id'], $thread['thread_id'], $user->data['default_watch_state']);
+
+        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        $this->getModels()->getModel('thread')->markThreadRead($thread, $forum, XenForo_Application::$time, $user->getData());
+
+        return $thread;
     }
 
     public function editUser($user, $edit_data = array()) {
@@ -2910,6 +3113,22 @@ class XenAPI {
             $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
         }
         return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData());
+    }
+
+    public function canPostThreadInForum($user, $forum, $permissions = NULL) {
+        // Does not take in count of private nodes.
+        if (!empty($forum['node_type_id'])) {
+            if ($permissions == NULL) {
+                // Let's grab the permissions.
+                $forum = $this->getForum($forum['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+
+                // Unserialize the permissions.
+                $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
+            }
+            $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
+            return $this->getModels()->getModel('forum')->canPostThreadInForum($forum, $null, $permissions, $user->getData());
+        }
+        return FALSE;
     }
 
     /**
