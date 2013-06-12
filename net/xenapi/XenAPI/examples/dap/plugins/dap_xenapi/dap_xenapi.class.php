@@ -1,23 +1,22 @@
 <?php
 /*
- * This file is part of XenAPI <http://www.xenapi.net/>.
- *
- * XenAPI is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * XenAPI is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+This file is part of DAP Xenforo Plugin <http://www.xenapi.net/dap>.
+
+DAP Xenforo Plugin is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+DAP Xenforo Plugin is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with DAP Xenforo Plugin.  If not, see <http://www.gnu.org/licenses/>.
+*/
 class dap_xenapi {
-	const PARAMETERS_FIELDS  = 'dap_xenapi:API_KEY:PROTOCOL:API_URL:GROUP';
-	const PARAMETERS_EXAMPLE = 'dap_xenapi:dd990jvn190n2jr0v12:http:xenapi.net/api.php:5';
+	const PARAMETERS_FIELDS  = 'dap_xenapi:API_KEY:PROTOCOL:API_URL';
 	/**
 	* Default constructor.
 	*/
@@ -31,16 +30,24 @@ class dap_xenapi {
 	function register($user_id, $product_id, $parameters) 
 	{
 		// Tell the log that we recieved the request.
-		$this->log('register', 'Registering user ID: ' . $user_id . ' with XenAPI.');
+		$this->log(
+			'register', 
+			'Registering user ID: ' . $user_id . ' with XenAPI.'
+		);
 
 		// Grab the DAP user from the user ID.
 		$dap_user = Dap_User::loadUserById($user_id);
 
 		// Set the unique username.
-		$username = trim($dap_user->getFirst_name()) . ' ' . trim($dap_user->getLast_name());
+		$username = trim($dap_user->getFirst_name()) 
+				  . ' ' . trim($dap_user->getLast_name());
 
 		// Tell the log that we recieved the request.
-		$this->log('register', 'Registering user ID: ' . $user_id . ' with username "' . $username . '".');
+		$this->log(
+			'register', 
+			'Registering user ID: ' 
+				. $user_id . ' with username "' . $username . '".'
+		);
 
 		// Set the variables of the DAP user.
 		$user_data = array(
@@ -69,7 +76,10 @@ class dap_xenapi {
 		// Get the additional parameters.
 		try 
 		{
-			$additional_parameters = $this->getAdditionalParameters($data, $parameters);
+			$additional_parameters = $this->getAdditionalParameters(
+					$data, 
+					$parameters
+				);
 		} 
 		catch (Exception $e) 
 		{
@@ -78,19 +88,34 @@ class dap_xenapi {
 			return $e->getMessage();
 		}
 
-		// Set which group the user should have.
-		$user_data['add_groups'] = $additional_parameters['group'];
+		// Check if the group parameter is set.
+		if (!empty($additional_parameters['group'])) 
+		{
+			// Log that we found a custom field identifier.
+			$this->log(
+				'register', 
+				'Found group: ' . $additional_parameters['group']
+			);
+
+			// Set which group the user should have.
+			$user_data['add_groups'] = $additional_parameters['group'];
+		}
 
 		// Check if the custom field identifier parameter is set.
 		if (!empty($additional_parameters['custom_field_identifier'])) 
 		{
 			// Log that we found a custom field identifier.
-			$this->log('register', 'Found custom field identifier: ' . $additional_parameters['custom_field_identifier'] . '=' . $username);
+			$this->log(
+				'register', 
+				'Found custom field identifier: ' 
+					. $additional_parameters['custom_field_identifier'] 
+					. '=' . $username . ' ' . $user_id
+			);
 
 			// Set the custom field identifier.
 			$user_data['custom_fields'] = $additional_parameters['custom_field_identifier'] 
 										. '=' 
-										. $username;
+										. $username . ' ' . $user_id;
 		}
 
 		// Unset the additional parameters.
@@ -99,7 +124,11 @@ class dap_xenapi {
 		// Execute the API query.
 		try 
 		{
-			$this->apiRegister($api_data['api_url'], $api_data['api_key'], $user_data);
+			$this->apiRegister(
+				$api_data['api_url'], 
+				$api_data['api_key'], 
+				$user_data
+			);
 		} 
 		catch (Exception $e) 
 		{
@@ -117,17 +146,21 @@ class dap_xenapi {
 	function unregister($user_id, $product_id, $parameters)
 	{
 		// Tell the log that we recieved the request.
-		$this->log('unregister', 'Editing user ID: ' . $user_id . ' with XenAPI.');
+		$this->log(
+			'unregister', 
+			'Editing user ID: ' . $user_id . ' with XenAPI.'
+		);
 
 		// Grab the DAP user from the user ID.
 		$dap_user = Dap_User::loadUserById($user_id);
 
 		// Set the unique username.
-		$username = trim($dap_user->getFirst_name()) . ' ' . trim($dap_user->getLast_name());
+		$username = trim($dap_user->getFirst_name()) 
+				  . ' ' . trim($dap_user->getLast_name());
 
 		// Set the variables of the DAP user.
 		$user_data = array(
-			'user' => $username
+			'user' => $username . ' ' . $user_id
 		);
 
 		// Split the parameters into an array.
@@ -148,7 +181,10 @@ class dap_xenapi {
 		// Get the additional parameters.
 		try 
 		{
-			$additional_parameters = $this->getAdditionalParameters($data, $parameters);
+			$additional_parameters = $this->getAdditionalParameters(
+				$data, 
+				$parameters
+			);
 		} 
 		catch (Exception $e) 
 		{
@@ -157,14 +193,28 @@ class dap_xenapi {
 			return $e->getMessage();
 		}
 
-		// Set which group to remove.
-		$user_data['remove_groups'] = $additional_parameters['group'];
+		// Check if the group parameter is set.
+		if (!empty($additional_parameters['group'])) 
+		{
+			// Log that we found a custom field identifier.
+			$this->log(
+				'unregister', 
+				'Found group: ' . $additional_parameters['group']
+			);
+
+			// Set which group to remove.
+			$user_data['remove_groups'] = $additional_parameters['group'];
+		}
 
 		// Check if the custom field identifier parameter is set.
 		if (!empty($additional_parameters['custom_field_identifier'])) 
 		{
 			// Log that we found a custom field identifier.
-			$this->log('unregister', 'Found custom field identifier: ' . $additional_parameters['custom_field_identifier']);
+			$this->log(
+				'unregister', 
+				'Found custom field identifier: ' 
+					. $additional_parameters['custom_field_identifier']
+			);
 
 			// Set the custom field identifier.
 			$user_data['custom_field_identifier'] = $additional_parameters['custom_field_identifier'];
@@ -176,7 +226,11 @@ class dap_xenapi {
 		// Execute the API query.
 		try 
 		{
-			$this->apiEditUser($api_data['api_url'], $api_data['api_key'], $user_data);
+			$this->apiEditUser(
+				$api_data['api_url'], 
+				$api_data['api_key'], 
+				$user_data
+			);
 		} 
 		catch (Exception $e) 
 		{
@@ -188,18 +242,23 @@ class dap_xenapi {
 		return 0;
 	}
 
-	private function handleAPIError($api_response, $api_url, $api_key, $action, $user_data)
-	{
+	private function handleAPIError($api_response, $api_url, $api_key, $action, 
+		$user_data
+	) {
 		// Decode the JSON.
 		$api_response = json_decode($api_response, TRUE);
 
-		// Check if the JSON decode failed (meaning that the results was not a JSON string).
+		/* 
+		Check if the JSON decode failed 
+		(meaning that the results was not a JSON string).
+		*/
  		if (json_last_error() != JSON_ERROR_NONE) 
  		{
 			// The request failed, throw exception.
 			$this->log(
 				'handleAPIError', 
-				'Request failed, results was not a JSON string: ' . $api_response,
+				'Request failed, results was not a JSON string: ' 
+					. $api_response,
 	  			'error'
 			);
 			return NULL;
@@ -208,23 +267,29 @@ class dap_xenapi {
 		// Log the error ID and error message.
 		$this->log(
 			'handleAPIError', 
-			'API returned error id ' . $api_response['error'] . ': ' . $api_response['message'], 
+			'API returned error id ' . $api_response['error'] . ': ' 
+				. $api_response['message'], 
 			'error'
 		);
 
 		// Check if the error is a user error.
 		if (!empty($api_response['user_error_id']))
 		{
-			// The error was a user error, log the user error ID and user error message/phrase.
+			/* 
+			The error was a user error, 
+			log the user error ID and user error message/phrase.
+			*/
 			$this->log(
 				'handleAPIError', 
-				'Found user error id ' . $api_response['user_error_id'] . ': ' . $api_response['user_error_phrase'], 
+				'Found user error id ' . $api_response['user_error_id'] . ': ' 
+					. $api_response['user_error_phrase'], 
 				'error'
 			);
 
 			// Check if user already exist.
-			if ($api_response['user_error_id'] == 40) 
-			{
+			if ($api_response['user_error_id'] == 40 
+				&& !empty($user_data['add_groups'])
+			) {
 				// User exist, let's edit the user instead.
 				$this->log(
 					'handleAPIError', 
@@ -234,7 +299,7 @@ class dap_xenapi {
 
 				// Init the edit data.
 				$edit_data = array(
-					'user' 			=> $user_data['username'],
+					'user'       => $user_data['username'],
 					'add_groups' => $user_data['add_groups']
 				);
 
@@ -242,15 +307,17 @@ class dap_xenapi {
 				if (!empty($user_data['custom_field_identifier'])) 
 				{
 					// Log that we found a custom field identifier.
-					$this->log('handleAPIError', 'Found custom field identifier: ' . $user_data['custom_field_identifier']);
+					$this->log(
+						'handleAPIError', 
+						'Found custom field identifier: ' 
+							. $user_data['custom_field_identifier']
+					);
 
 					// Set the custom field identifier.
 					$edit_data['custom_field_identifier'] = $user_data['custom_field_identifier'];
 				}
-
 				// Execute the API edit request.
-				$this->apiEditUser($api_url, $api_key, $edit_data);
-			}
+				$this->apiEditUser($api_url, $api_key, $edit_data);			}
 
 			// Check if the user error field is set.
 			if (!empty($api_response['user_error_field']))
@@ -281,40 +348,46 @@ class dap_xenapi {
 		// Init the additional parameters.
 		$additional_parameters = array();
 
-		// Check if the group value is set.
-		if (!isset($data[4]))
+		// Check if group parameter is set.
+		if (isset($data[4]))
 		{
-			// Group value is not set, throw error message.
-			throw Exception(
-				'Missing group ID/name. Params should be ' 
-			  . '(' . self::PARAMETERS_FIELDS . ':GROUP), but is (' . $parameters . ')'
-			);
-		}
-		else if (empty($data[4]))
-		{
-	 		// Group value is set but empty, throw error message.
-			throw Exception(
-				'Group ID/name is empty. Params should be ' 
-			  . '(' . self::PARAMETERS_FIELDS . '), but is (' . $parameters . ')'
-			);
+			if (empty($data[4]) && !is_numeric($data[4]))
+			{
+		 		// Group is set but empty, throw error message.
+				throw Exception(
+					'Group ID is empty. Params should be ' 
+				  	. '(' . self::PARAMETERS_FIELDS . ':GROUP), but is (' 
+			  		. $parameters . ')'
+ 				);
+			}
+
+			// Check if group ID is numeric and larger than 0 (we ignore 0).
+			if (is_numeric($data[4]) && $data[4] > 0)
+			{
+				// Set the group.
+				$additional_parameters['group'] = $data[4];
+			}
 		}
 
-		// Set the group.
-		$additional_parameters['group'] = $data[4];
-
-		// Check if the custom identifier field value is set.
+		// Check if the custom identifier field parameter is set.
 		if (isset($data[5]))
 		{
 			if (empty($data[5]))
 			{
-		 		// Custom identifier field is set but empty, throw error message.
+		 		/* 
+		 		Custom identifier field is set but empty, throw error message.
+		 		*/
 				throw Exception(
-					'Custom identifier field is set but empty. Params should be ' 
- 				  . '(' . self::PARAMETERS_FIELDS . ':CUSTOM_USER_FIELD), but is (' . $parameters . ')'
+					'Custom identifier field is set but empty. Params should be' 
+ 				  	. ' (' . self::PARAMETERS_FIELDS 
+			  		. ':GROUP:CUSTOM_USER_FIELD), but is (' . $parameters . ')'
  				);
 			}
 
-			// Set the custom identifier field of which we want to identify the user with.
+			/*
+			Set the custom identifier field of 
+			which we want to identify the user with.
+			*/
 			$additional_parameters['custom_field_identifier'] = $data[5];
 		}
 		return $additional_parameters;
@@ -331,7 +404,8 @@ class dap_xenapi {
 			// Could not find an API key, throw exception.
 			throw new Exception(
 				'Missing API key. Params should be ' 
-			  . '(' . self::PARAMETERS_FIELDS . '), but is (' . $parameters . ')'
+		  		. '(' . self::PARAMETERS_FIELDS 
+		  		. '), but is (' . $parameters . ')'
 			);
 		}
 
@@ -347,7 +421,8 @@ class dap_xenapi {
 			// Could not find an API URL, throw exception.
 			throw new Exception(
 				'Missing API URL. Params should be ' 
-			  . '(' . self::PARAMETERS_FIELDS . '), but is (' . $parameters . ')'
+		  		. '(' . self::PARAMETERS_FIELDS . '), but is (' 
+	  			. $parameters . ')'
 			);
 		}
 
@@ -358,7 +433,8 @@ class dap_xenapi {
 	}
 
 	/**
-	* Get the API key from the intput parameters, returns NULL if no API key could be found.
+	* Get the API key from the intput parameters, 
+	* returns NULL if no API key could be found.
 	*/
 	private function getAPIKey($data) 
 	{
@@ -372,11 +448,13 @@ class dap_xenapi {
 	}
 
 	/**
-	* Get the API url from the intput parameters, returns NULL if no API url could be found.
+	* Get the API url from the intput parameters, 
+	* returns NULL if no API url could be found.
 	*/
 	private function getAPIURL($data) 
 	{
-		if (isset($data[2]) && !empty($data[2]) && isset($data[3]) && !empty($data[3])) 
+		if (isset($data[2]) && !empty($data[2]) 
+			&& isset($data[3]) && !empty($data[3])) 
 		{
 			// Lowercase the protocol.
 			$data[2] = strtolower($data[2]);
@@ -387,7 +465,8 @@ class dap_xenapi {
 				// The protocol was invalid, log error and return NULL.
 				$this->log(
 					'getAPIURL', 
-					'The protocol was invalid, expected "http" or "https", but got: ' . $data[2], 
+					'The protocol was invalid, expected "http" or "https",'
+						. 'but got: ' . $data[2], 
 					'error'
 				);
 				return NULL;
@@ -406,9 +485,14 @@ class dap_xenapi {
 	protected function log($method, $message, $log_level = '')
 	{
 		// Set the log prefix.
-		$log_prefix = 'dap_xenapi.class.php: ' . $method . '(): ' . (!empty($log_level) ? strtoupper($log_level) . ': ' : '') . ': ';
+		$log_prefix = 'dap_xenapi.class.php: ' . $method . '(): ' 
+					. (!empty($log_level) ? strtoupper($log_level) . ': ' : '')
+					. ': ';
 
-		// Split the message into an array as DAP only allows the max length of 200 characters.
+		/*
+		Split the message into an array as 
+		DAP only allows the max length of 200 characters.
+		*/
 		$message_array = str_split($message, 200 - strlen($log_prefix));
 
 		// Loop through the messages and log them.
@@ -434,15 +518,17 @@ class dap_xenapi {
 	* The function will fallback to file_get_contents if cURL is not found.
 	* it will either return a JSON string, or NULL if something wrong happend.
 	*/
-	private function getResults($api_url = NULL, $api_key = NULL, $action = NULL, array $user_data) 
-	{
+	private function getResults($api_url = NULL, $api_key = NULL, 
+		$action = NULL, array $user_data
+	) {
 		// Check if all the required parameters have been initialized.
 		if ($api_url == NULL || $api_key == NULL || $action == NULL)
 		{
 			// One of the variables were not initialized, throe exception.
 			throw new Exception(
 				'One or more of the required parameters were NULL. ' 
-			  . 'api_key=' . $api_url . ', api_key=' . $api_key . ', action=' . $action
+				. 'api_key=' . $api_url . ', api_key=' . $api_key 
+				. ', action=' . $action
 		   );
 		}
 
@@ -493,10 +579,19 @@ class dap_xenapi {
 				// Check if the error parameter is set.
 				if (!empty($response['error'])) 
 				{
-					$this->handleAPIError($response, $api_url, $api_key, $action, $user_data);
+					$this->handleAPIError(
+						$response, 
+						$api_url, 
+						$api_key, 
+						$action, 
+						$user_data
+					);
 				}
 
-				// The request failed, response header did not return status 200, throw exception.
+				/* 
+				The request failed, response header did not return status 200, 
+				throw exception.
+				*/
 				throw new Exception(
 					'Request failed with action: ' . $action 
 				  . ', HTTP status code was not 200: ' . $http_status_code
@@ -508,14 +603,16 @@ class dap_xenapi {
 			// cURL is not avaiable, fallback to file_get_contents instead.
 			$this->log(
 				'getResults', 
-				'Could not find cURL, falling back to file_get_contents instead', 
+				'Could not find cURL, '
+					.'falling back to file_get_contents instead', 
 				'warning'
 			);
 
 			// Options for the stream.
 			$options = array(
 			    'http' => array(
-			        'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+			        'header'  => "Content-type: " 
+			        		   . "application/x-www-form-urlencoded\r\n",
 			        'method'  => 'POST',
 			        'content' => http_build_query($api_data),
 			    ),
@@ -540,23 +637,41 @@ class dap_xenapi {
 				// Check if the error parameter is set.
 				if (!empty($response['error'])) 
 				{
-					$this->handleAPIError($response, $api_url, $api_key, $action, $user_data);
+					$this->handleAPIError(
+						$response, 
+						$api_url, 
+						$api_key, 
+						$action, 
+						$user_data
+					);
 				}
 
-				// The request failed, response header did not return status 200, throw exception.
+				/* 
+				The request failed, 
+				response header did not return status 200, throw exception.
+				*/
 				throw new Exception(
 					'Request failed with action: ' . $action 
-				  . ', HTTP status code was not 200: ' . $http_response_header[0]
+				  	. ', HTTP status code was not 200: ' 
+				  	. $http_response_header[0]
 				);
 			}
 		}
-		// Log the results.
-		// Spams the log file: $this->log('getResults', 'Got response from the XenAPI:' . $response . '.');
+		/* 
+		For debugging: 
+		$this->log(
+			'getResults', 
+			'Got response from the XenAPI:' . $response . '.'
+		);
+		*/
 
 		// Decode the JSON.
 		$response_decoded = json_decode($response, TRUE);
 
-		// Check if the JSON decode failed (meaning that the results was not a JSON string).
+		/* 
+		Check if the JSON decode failed 
+		(meaning that the results was not a JSON string).
+ 		*/
  		if (json_last_error() != JSON_ERROR_NONE) 
  		{
 			// The request failed, throw exception.
@@ -566,7 +681,10 @@ class dap_xenapi {
 			);
  		}
 
- 		// The results was a JSON response and contained no errors, return the results.
+ 		/* 
+ 		The results was a JSON response and contained no errors, 
+ 		return the results.
+ 		*/
  		return $response_decoded;
 	}
 }
