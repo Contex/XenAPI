@@ -752,6 +752,16 @@ class RestAPI {
                 * EXAMPLE:
                 *   - api.php
                 */
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                    // The 'grab_as' argument has not been set, throw error.
+                    $this->throwError(3, 'grab_as');
+                    break;
+                } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
+                    // Throw error if the 'grab_as' argument is set but empty.
+                    $this->throwError(1, 'grab_as');
+                    break;
+                } 
+
                 if (!$this->hasRequest('thread_id')) {
                     // The 'thread_id' argument has not been set, throw error.
                     $this->throwError(3, 'thread_id');
@@ -760,7 +770,7 @@ class RestAPI {
                     // Throw error if the 'thread_id' argument is set but empty.
                     $this->throwError(1, 'thread_id');
                     break;
-                } 
+                }
 
                 // Try to grab the thread from XenForo.
                 $thread = $this->getXenAPI()->getThread($this->getRequest('thread_id'), array(), $this->getUser());
