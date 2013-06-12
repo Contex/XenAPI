@@ -52,7 +52,7 @@ if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'API_KEY') {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.3.2.dev';
+    const VERSION = '1.4.dev';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     /**
@@ -79,6 +79,7 @@ class RestAPI {
     */
     private $actions = array(
         'authenticate'     => 'public',
+        'createpost'       => 'authenticated',
         'edituser'         => 'api_key',
         'getactions'       => 'public', 
         'getaddon'         => 'administrator',
@@ -149,6 +150,8 @@ class RestAPI {
         10 => 'Missing required a required parameter',
         11 => 'The remove_groups parameter needs to be an array and have at least 1 item',
         12 => 'The user is not a member of the group(s)',
+        13 => 'An user is required to create a post reply',
+        14 => 'The user does not have permissions to post in this thread',
         30 => 'Missing required registration fields',
         31 => 'Password invalid',
         32 => 'Name length is too short',
@@ -631,8 +634,11 @@ class RestAPI {
     */
     public function throwError($error, $extra = NULL, $extra2 = NULL) {
         if ($error == self::USER_ERROR) {
+            if ($extra2 == NULL) {
+                $extra2 = 'performing a user action';
+            }
             $user_error = $this->getError($extra['error_id'], NULL, NULL, self::USER_ERROR);
-            $general_error = $this->getError(7, 'registering user', $user_error['message']);
+            $general_error = $this->getError(7, $extra2, $user_error['message']);
             $error_response = array(
                 'error' => $general_error['id'], 
                 'message' => $general_error['message'], 
@@ -739,6 +745,87 @@ class RestAPI {
                     }
                 }
                 break;
+            case 'createpost': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if (!$this->hasRequest('thread_id')) {
+                    // The 'thread_id' argument has not been set, throw error.
+                    $this->throwError(3, 'thread_id');
+                    break;
+                } else if (!$this->getRequest('thread_id')) {
+                    // Throw error if the 'thread_id' argument is set but empty.
+                    $this->throwError(1, 'thread_id');
+                    break;
+                } 
+
+                // Try to grab the thread from XenForo.
+                $thread = $this->getXenAPI()->getThread($this->getRequest('thread_id'), array(), $this->getUser());
+                if ($thread == NULL) {
+                     // Could not find the thread, throw error.
+                    $this->throwError(19, 'thread', $this->getRequest('thread_id'));
+                }
+
+                if (!$this->hasRequest('message')) {
+                    // The 'message' argument has not been set, throw error.
+                    $this->throwError(3, 'message');
+                    break;
+                } else if (!$this->getRequest('message')) {
+                    // Throw error if the 'message' argument is set but empty.
+                    $this->throwError(1, 'message');
+                    break;
+                }
+                $post_data = array(
+                    'thread_id' => $thread['thread_id'],
+                    'title'     => $this->getRequest('title'),
+                    'message'   => $this->getRequest('message')
+                );
+                // Create the post object.
+                $post_results = $this->xenAPI->createPost($this->getUser(), $post_data);
+
+                if (!empty($post_results['error'])) {
+                    // The post creation failed, process errors.
+                    if (is_array($post_results['errors'])) {
+                        // The error message was an array, loop through the messages.
+                        $error_keys = array();
+                        foreach ($post_results['errors'] as $error_field => $error) {
+                            if (!($error instanceof XenForo_Phrase)) {
+                                $post_error = array(
+                                    'error_id' => 1,
+                                    'error_key' => 'field_not_recognised', 
+                                    'error_field' => $error_field, 
+                                    'error_phrase' => $error
+                                );
+                                $this->throwError(self::USER_ERROR, $post_error, 'creating a new post');
+                            }
+
+                            // Let's init the post creation error array.
+                            $post_error = array(
+                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
+                                'error_key' => $error->getPhraseName(), 
+                                'error_field' => $error_field, 
+                                'error_phrase' => $error->render()
+                            );
+
+                            $this->throwError(self::USER_ERROR, $post_error, 'creating a new post');
+                        }
+                    } else {
+                        $post_error = array(
+                            'error_id' => $post_results['error'],
+                            'error_key' => 'general_user_post_creation_error', 
+                            'error_phrase' => $post_results['errors']
+                        );
+                        $this->throwError(self::USER_ERROR, $post_error, 'creating a new post');
+                        // Throw error message.
+                    }
+                } else {
+                    // Post creation was successful, return results.
+                    $this->sendResponse($post_results);
+                }
+                break;
             case 'edituser':
                 /**
                 * Edits the user.
@@ -786,7 +873,7 @@ class RestAPI {
                             'error_field' => 'group', 
                             'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('group') . '"'
                         );
-                        $this->throwError(self::USER_ERROR, $edit_error);
+                        $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
                     }
                     // Set the group id of the edit.
                     $edit_data['group_id'] = $group['user_group_id'];
@@ -824,7 +911,7 @@ class RestAPI {
                                     'error_field' => $group_field, 
                                     'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
                                 );
-                                $this->throwError(self::USER_ERROR, $edit_error);
+                                $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
                             }
                             // Add the group_id to the the add_group array.
                             $edit_data[$group_field][] = $group['user_group_id'];
@@ -842,7 +929,7 @@ class RestAPI {
                                 'error_field' => $group_field, 
                                 'error_phrase' => 'Could not find group with parameter "' . $this->getRequest($group_field) . '"'
                             );
-                            $this->throwError(self::USER_ERROR, $edit_error);
+                            $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
                         }
                         // Add the group_id to the the add_groups array.
                         $edit_data[$group_field][] = $group['user_group_id'];
@@ -870,7 +957,7 @@ class RestAPI {
                                             . 'custom_fields=custom_field1=custom_value1,custom_field2=custom_value2 '
                                             . 'but got: "' . $this->getRequest('custom_fields') . '" instead'
                         );
-                        $this->throwError(self::USER_ERROR, $edit_error);
+                        $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
                     }
                     $edit_data['custom_fields'] = $custom_fields;
                 }
@@ -909,7 +996,7 @@ class RestAPI {
                                     'error_field' => $error_field, 
                                     'error_phrase' => $error
                                 );
-                                $this->throwError(self::USER_ERROR, $edit_error);
+                                $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
 
                             }
 
@@ -921,7 +1008,7 @@ class RestAPI {
                                 'error_phrase' => $error->render()
                             );
 
-                            $this->throwError(self::USER_ERROR, $edit_error);
+                            $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
                         }
                     } else {
                         $edit_error = array(
@@ -929,7 +1016,7 @@ class RestAPI {
                             'error_key' => 'general_user_edit_error', 
                             'error_phrase' => $edit_results['errors']
                         );
-                        $this->throwError(self::USER_ERROR, $edit_error);
+                        $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
                         // Throw error message.
                     }
                 } else {
@@ -1894,7 +1981,7 @@ class RestAPI {
                             'error_field' => 'group', 
                             'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('group') . '"'
                         );
-                        $this->throwError(self::USER_ERROR, $registration_error);
+                        $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
                     }
                     // Set the group id of the registration.
                     $user_data['group_id'] = $group['user_group_id'];
@@ -1920,7 +2007,7 @@ class RestAPI {
                                             . 'custom_fields=custom_field1=custom_value1,custom_field2=custom_value2 '
                                             . 'but got: "' . $this->getRequest('custom_fields') . '" instead'
                         );
-                        $this->throwError(self::USER_ERROR, $registration_error);
+                        $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
                     }
                     $user_data['custom_fields'] = $custom_fields;
                 }
@@ -1948,13 +2035,13 @@ class RestAPI {
                             // Check if group was found.
                             if (!$group) {
                                 // Group was not found, throw error.
-                                $edit_error = array(
+                                $registration_error = array(
                                     'error_id' => 2,
                                     'error_key' => 'group_not_found', 
                                     'error_field' => 'add_groups', 
                                     'error_phrase' => 'Could not find group with parameter "' . $group_value . '" in array "' . $this->getRequest('add_group') . '"'
                                 );
-                                $this->throwError(self::USER_ERROR, $edit_error);
+                                $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
                             }
                             // Add the group_id to the the add_group array.
                             $user_data['add_groups'][] = $group['user_group_id'];
@@ -1966,13 +2053,13 @@ class RestAPI {
                         // Check if group was found.
                         if (!$group) {
                             // Group was not found, throw error.
-                            $edit_error = array(
+                            $registration_error = array(
                                 'error_id' => 2,
                                 'error_key' => 'group_not_found', 
                                 'error_field' => 'add_groups', 
                                 'error_phrase' => 'Could not find group with parameter "' . $this->getRequest('add_groups') . '"'
                             );
-                            $this->throwError(self::USER_ERROR, $edit_error);
+                            $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
                         }
                         // Add the group_id to the the add_groups array.
                         $user_data['add_groups'][] = $group['user_group_id'];
@@ -2016,7 +2103,7 @@ class RestAPI {
                                     'error_field' => $error_field, 
                                     'error_phrase' => $error
                                 );
-                                $this->throwError(self::USER_ERROR, $registration_error);
+                                $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
 
                             }
 
@@ -2028,7 +2115,7 @@ class RestAPI {
                                 'error_phrase' => $error->render()
                             );
                             
-                            $this->throwError(self::USER_ERROR, $registration_error);
+                            $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
                         }
                     } else {
                         $registration_error = array(
@@ -2037,7 +2124,7 @@ class RestAPI {
                             'error_phrase' => $registration_results['errors']
                         );
 
-                        $this->throwError(self::USER_ERROR, $registration_error);
+                        $this->throwError(self::USER_ERROR, $registration_error, 'registering a new user');
                     }
                 } else {
                     // Registration was successful, return results.
@@ -2100,6 +2187,50 @@ class XenAPI {
         } catch (Exception $ignore) {
             // The resource model is missing, ignore the exceiption.
         }
+    }
+
+    public function createPost($user, $post_data = array()) { 
+       if ($user == NULL) {
+            // An user is required to create a new post.
+            return array('error' => 13, 'errors' => 'User is required to create a post.');
+        }
+
+        $fetchOptions = array('permissionCombinationId' => $user->data['permission_combination_id']);
+
+        $thread = $this->getThread($post_data['thread_id']);
+        $forum = $this->getForum($thread['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+        $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
+
+        if (!$this->canViewNode($user, $forum, $permissions)) {
+            // User does not have permission to post in this thread.
+            return array('error' => 14, 'errors' => 'The user does not have permissions to post in this thread.');
+        }
+
+        $input['message'] = XenForo_Helper_String::autoLinkBbCode($post_data['message']);
+
+        $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_DiscussionMessage_Post');
+        $writer->set('user_id', $user->data['user_id']);
+        $writer->set('username', $user->data['username']);
+        $writer->set('message', $input['message']);
+        $writer->set('message_state', $this->getModels()->getModel('post')->getPostInsertMessageState($thread, $forum));
+        $writer->set('thread_id', $thread['thread_id']);
+        $writer->setExtraData(XenForo_DataWriter_DiscussionMessage_Post::DATA_FORUM, $forum);
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The post creation failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        $writer->save();
+        $post = $writer->getMergedData();
+
+        $this->getModels()->checkModel('thread_watch', XenForo_Model::create('XenForo_Model_ThreadWatch'));
+
+        $this->getModels()->getModel('thread_watch')->setThreadWatchStateWithUserDefault($user['user_id'], $thread['thread_id'], $user['default_watch_state']);
+
+        return $post;
     }
 
     public function editUser($user, $edit_data = array()) {
@@ -2887,7 +3018,7 @@ class XenAPI {
     /**
     * Returns the Thread array of the $thread_id parameter.
     */
-    public function getThread($thread_id, $fetchOptions = array(), $user = NULL) {
+    public function getThread($thread_id, array $fetchOptions = array(), $user = NULL) {
         if (isset($fetchOptions['grab_content'])) {
             $grab_content = TRUE;
             unset($fetchOptions['grab_content']);
