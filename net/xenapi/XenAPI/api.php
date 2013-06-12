@@ -2331,7 +2331,7 @@ class XenAPI {
         $forum = $this->getForum($thread['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
         $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
 
-        if (!$this->canViewNode($user, $forum, $permissions)) {
+        if (!$this->canViewThread($user, $thread, $permissions) || !$this->canReplyToThread($user, $thread, $forum, $permissions)) {
             // User does not have permission to post in this thread.
             return array('error' => 14, 'errors' => 'The user does not have permissions to post in this thread.');
         }
@@ -3129,6 +3129,19 @@ class XenAPI {
             return $this->getModels()->getModel('forum')->canPostThreadInForum($forum, $null, $permissions, $user->getData());
         }
         return FALSE;
+    }
+
+    public function canReplyToThread($user, $thread, $forum, $permissions = NULL) {
+        // Check if the thread model has initialized.
+        $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        if ($permissions == NULL) {
+            // Let's grab the permissions.
+            $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+
+            // Unserialize the permissions.
+            $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
+        }
+        return $this->getModels()->getModel('thread')->canReplyToThread($thread, $forum, $null, $permissions, $user->getData());
     }
 
     /**
