@@ -78,32 +78,33 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-        'authenticate'       => 'public',
-        'createconversation' => 'authenticated',
-        'createpost'         => 'authenticated',
-        'createthread'       => 'authenticated',
-        'edituser'           => 'api_key',
-        'getactions'         => 'public', 
-        'getaddon'           => 'administrator',
-        'getaddons'          => 'administrator',
-        'getalerts'          => 'private', 
-        'getavatar'          => 'public',
-        'getconversations'   => 'private',
-        'getgroup'           => 'public', 
-        'getnode'            => 'public',
-        'getnodes'           => 'public',
-        'getpost'            => 'public',
-        'getposts'           => 'public',
-        'getprofilepost'     => 'authenticated',
-        'getprofileposts'    => 'authenticated',
-        'getresource'        => 'administrator',
-        'getresources'       => 'administrator',
-        'getstats'           => 'public',
-        'getthread'          => 'public',
-        'getthreads'         => 'public',
-        'getuser'            => 'authenticated', 
-        'getusers'           => 'public',
-        'register'           => 'api_key'
+        'authenticate'            => 'public',
+        'createconversation'      => 'authenticated',
+        'createconversationreply' => 'authenticated',
+        'createpost'              => 'authenticated',
+        'createthread'            => 'authenticated',
+        'edituser'                => 'api_key',
+        'getactions'              => 'public', 
+        'getaddon'                => 'administrator',
+        'getaddons'               => 'administrator',
+        'getalerts'               => 'private', 
+        'getavatar'               => 'public',
+        'getconversations'        => 'private',
+        'getgroup'                => 'public', 
+        'getnode'                 => 'public',
+        'getnodes'                => 'public',
+        'getpost'                 => 'public',
+        'getposts'                => 'public',
+        'getprofilepost'          => 'authenticated',
+        'getprofileposts'         => 'authenticated',
+        'getresource'             => 'administrator',
+        'getresources'            => 'administrator',
+        'getstats'                => 'public',
+        'getthread'               => 'public',
+        'getthreads'              => 'public',
+        'getuser'                 => 'authenticated', 
+        'getusers'                => 'public',
+        'register'                => 'api_key'
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
@@ -847,10 +848,49 @@ class RestAPI {
                     }
                 }
 
-                // Create the post object.
+                // Create the conversation object.
                 $conversation_results = $this->xenAPI->createConversation($this->getUser(), $conversation_data);
 
                 $this->handleUserError($conversation_results, 'conversation_creation_error', 'creating a new conversation');
+        case 'createconversationreply': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                    // The 'grab_as' argument has not been set, throw error.
+                    $this->throwError(3, 'grab_as');
+                } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
+                    // Throw error if the 'grab_as' argument is set but empty.
+                    $this->throwError(1, 'grab_as');
+                } 
+
+                $conversation_reply_data = array();
+
+                // Array of required parameters.
+                $required_parameters = array('conversation_id', 'message');
+
+                foreach ($required_parameters as $required_parameter) {
+                    // Check if the required parameter is set and not empty.
+                    $this->checkRequestParameter($required_parameter);
+
+                    // Set the request value.
+                    $conversation_reply_data[$required_parameter] = $this->getRequest($required_parameter);
+                }
+
+                // Try to grab the thread from XenForo.
+                $conversation = $this->getXenAPI()->getConversation($this->getRequest('conversation_id'), $this->getUser());
+                if ($conversation == NULL) {
+                     // Could not find the conversation, throw error.
+                    $this->throwError(19, 'conversation', $this->getRequest('conversation_id'));
+                }
+
+                // Create the conversation reply object.
+                $conversation_reply_results = $this->xenAPI->createConversationReply($this->getUser(), $conversation_reply_data);
+
+                $this->handleUserError($conversation_reply_results, 'conversation_reply_creation_error', 'creating a new conversation reply');
             case 'createpost': 
                 /**
                 * TODO
@@ -2392,6 +2432,44 @@ class XenAPI {
         return $conversation;
     }
 
+    public function createConversationReply($user, $conversation_reply_data = array()) { 
+       if ($user == NULL) {
+            // An user is required to create a new conversation.
+            return array('error' => 13, 'errors' => 'User is required to create a conversation reply.');
+        }
+
+        $conversation = $this->getConversation($conversation_reply_data['conversation_id'], $user);
+
+        $this->getModels()->checkModel('conversation', XenForo_Model::create('XenForo_Model_Conversation'));
+        if (!$this->getModels()->getModel('conversation')->canReplyToConversation($conversation, $null, $user->getData())) {
+            // User does not have permission to reply to this conversation.
+            return array('error' => 14, 'errors' => 'The user does not have permissions to reply to this conversation.');
+        }
+
+        $conversation_reply_data['message'] = XenForo_Helper_String::autoLinkBbCode($conversation_reply_data['message']);
+
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_ConversationMessage');
+        $writer->setExtraData(XenForo_DataWriter_ConversationMessage::DATA_MESSAGE_SENDER, $user->getData());
+        $writer->set('conversation_id', $conversation['conversation_id']);
+        $writer->set('user_id', $user->data['user_id']);
+        $writer->set('username', $user->data['username']);
+        $writer->set('message', $conversation_reply_data['message']);
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The conversation reply creation failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        $writer->save();
+
+        $conversation_reply = $writer->getMergedData();
+
+        $this->getModels()->getModel('conversation')->markConversationAsRead($conversation['conversation_id'], $user->data['user_id'], XenForo_Application::$time, 0, FALSE);
+
+        return $conversation_reply;
+    }
+
     public function createPost($user, $post_data = array()) { 
        if ($user == NULL) {
             // An user is required to create a new post.
@@ -2822,6 +2900,11 @@ class XenAPI {
     public function getConversations($user, $conditions = array(), $fetchOptions = array()) {
         $this->getModels()->checkModel('conversation', XenForo_Model::create('XenForo_Model_Conversation'));
         return $this->getModels()->getModel('conversation')->getConversationsForUser($user->getID(), $conditions, $fetchOptions);
+    }
+
+    public function getConversation($conversation, $user, $fetchOptions = array()) {
+        $this->getModels()->checkModel('conversation', XenForo_Model::create('XenForo_Model_Conversation'));
+        return $this->getModels()->getModel('conversation')->getConversationForUser($conversation, $user->getData(), $fetchOptions);
     }
 
     public function getGroup($group) {
