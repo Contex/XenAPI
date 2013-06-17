@@ -82,6 +82,7 @@ class RestAPI {
         'createconversation'      => 'authenticated',
         'createconversationreply' => 'authenticated',
         'createpost'              => 'authenticated',
+        'createprofilepost'       => 'authenticated',
         'createthread'            => 'authenticated',
         'edituser'                => 'api_key',
         'getactions'              => 'public', 
@@ -109,7 +110,7 @@ class RestAPI {
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
-    private $user_actions = array('getalerts', 'getavatar', 'getconversation', 'getconversations', 'getuser');
+    private $user_actions = array('getalerts', 'getavatar', 'getconversation', 'getconversations', 'createprofilepost', 'getuser');
     
     // List of general errors, this is where the 'throwError' function gets the messages from.
     private $general_errors = array(
@@ -942,6 +943,45 @@ class RestAPI {
                 $post_results = $this->xenAPI->createPost($this->getUser(), $post_data);
 
                 $this->handleUserError($post_results, 'post_creation_error', 'creating a new post');
+        case 'createprofilepost': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                // Array of required parameters.
+                $required_parameters = array('message');
+
+                foreach ($required_parameters as $required_parameter) {
+                    // Check if the required parameter is set and not empty.
+                    $this->checkRequestParameter($required_parameter);
+                }
+
+                if ($this->hasRequest('user')) {
+                    if (!$this->getRequest('user')) {
+                        // Throw error if the 'user' argument is set but empty.
+                        $this->throwError(1, 'user');
+                        break;
+                    }
+                    $profile_user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                    if (!$user->isRegistered()) {
+                        // Requested user was not registered, throw error.
+                        $this->throwError(4, 'user', $this->getRequest('user'));
+                    }
+                } else {
+                    $profile_user = $user;
+                }
+
+                $profile_post_data = array(
+                    'user_id' => $profile_user->data['user_id'],
+                    'message'   => $this->getRequest('message')
+                );
+
+                // Create the post object.
+                $profile_post_results = $this->xenAPI->createProfilePost($user, $profile_post_data);
+
+                $this->handleUserError($profile_post_results, 'profile_post_creation_error', 'creating a new profile post');
             case 'createthread': 
                 /**
                 * TODO
@@ -2390,10 +2430,10 @@ class RestAPI {
     */
     public function sendResponse($data) {
         if ($this->hasRequest('performance')) {
-    		global $time_start;
-			$time_end = microtime(TRUE);
-			$data['execution_time'] = $time_end - $time_start;
-		}
+            global $time_start;
+            $time_end = microtime(TRUE);
+            $data['execution_time'] = $time_end - $time_start;
+        }
         header('Content-type: application/json');
         die(json_encode($data));
     }
