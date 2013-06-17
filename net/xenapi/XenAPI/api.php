@@ -78,31 +78,32 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-        'authenticate'     => 'public',
-        'createpost'       => 'authenticated',
-        'createthread'     => 'authenticated',
-        'edituser'         => 'api_key',
-        'getactions'       => 'public', 
-        'getaddon'         => 'administrator',
-        'getaddons'        => 'administrator',
-        'getalerts'        => 'private', 
-        'getavatar'        => 'public',
-        'getconversations' => 'private',
-        'getgroup'         => 'public', 
-        'getnode'          => 'public',
-        'getnodes'         => 'public',
-        'getpost'          => 'public',
-        'getposts'         => 'public',
-        'getprofilepost'   => 'authenticated',
-        'getprofileposts'  => 'authenticated',
-        'getresource'      => 'administrator',
-        'getresources'     => 'administrator',
-        'getstats'         => 'public',
-        'getthread'        => 'public',
-        'getthreads'       => 'public',
-        'getuser'          => 'authenticated', 
-        'getusers'         => 'public',
-        'register'         => 'api_key'
+        'authenticate'       => 'public',
+        'createconversation' => 'authenticated',
+        'createpost'         => 'authenticated',
+        'createthread'       => 'authenticated',
+        'edituser'           => 'api_key',
+        'getactions'         => 'public', 
+        'getaddon'           => 'administrator',
+        'getaddons'          => 'administrator',
+        'getalerts'          => 'private', 
+        'getavatar'          => 'public',
+        'getconversations'   => 'private',
+        'getgroup'           => 'public', 
+        'getnode'            => 'public',
+        'getnodes'           => 'public',
+        'getpost'            => 'public',
+        'getposts'           => 'public',
+        'getprofilepost'     => 'authenticated',
+        'getprofileposts'    => 'authenticated',
+        'getresource'        => 'administrator',
+        'getresources'       => 'administrator',
+        'getstats'           => 'public',
+        'getthread'          => 'public',
+        'getthreads'         => 'public',
+        'getuser'            => 'authenticated', 
+        'getusers'           => 'public',
+        'register'           => 'api_key'
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
@@ -664,6 +665,48 @@ class RestAPI {
         // Send error.
         $this->sendResponse($error_response);
     }
+
+    private function handleUserError($user_results, $error_key, $error_message) {
+        if (!empty($user_results['error'])) {
+            // Contains errors, process errors.
+            if (is_array($user_results['errors'])) {
+                // The error message was an array, loop through the messages.
+                $error_keys = array();
+                foreach ($user_results['errors'] as $error_field => $error) {
+                    if (!($error instanceof XenForo_Phrase)) {
+                        $post_error = array(
+                            'error_id' => 1,
+                            'error_key' => 'field_not_recognised', 
+                            'error_field' => $error_field, 
+                            'error_phrase' => $error
+                        );
+                        $this->throwError(self::USER_ERROR, $post_error, $error_message);
+                    }
+
+                    // Let's init the error array.
+                    $post_error = array(
+                        'error_id' => $this->getUserErrorID($error->getPhraseName()),
+                        'error_key' => $error->getPhraseName(), 
+                        'error_field' => $error_field, 
+                        'error_phrase' => $error->render()
+                    );
+
+                    $this->throwError(self::USER_ERROR, $post_error, $error_message);
+                }
+            } else {
+                $post_error = array(
+                    'error_id' => $user_results['error'],
+                    'error_key' => 'general_user_' . $error_key, 
+                    'error_phrase' => $user_results['errors']
+                );
+                $this->throwError(self::USER_ERROR, $post_error, $error_message);
+                // Throw error message.
+            }
+        } else {
+            // Reesult was successful, return results.
+            $this->sendResponse($user_results);
+        }
+    }
     
     /**
     * Processes the REST request.
@@ -746,6 +789,68 @@ class RestAPI {
                     }
                 }
                 break;
+            case 'createconversation': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                    // The 'grab_as' argument has not been set, throw error.
+                    $this->throwError(3, 'grab_as');
+                } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
+                    // Throw error if the 'grab_as' argument is set but empty.
+                    $this->throwError(1, 'grab_as');
+                } 
+
+                $conversation_data = array();
+
+                // Array of required parameters.
+                $required_parameters = array('recipients', 'title', 'message');
+
+                // Array of additional parameters.
+                $additional_parameters = array('open_invite', 'conversation_locked');
+
+                foreach ($required_parameters as $required_parameter) {
+                    // Check if the required parameter is set and not empty.
+                    $this->checkRequestParameter($required_parameter);
+
+                    // Set the request value.
+                    $conversation_data[$required_parameter] = $this->getRequest($required_parameter);
+                }
+
+                if (strpos($this->getRequest('recipients'), ',') !== FALSE) {
+                    $recipient_array = explode(',', $this->getRequest('recipients'));
+                    foreach ($recipient_array as $recipient) {
+                        $user = $this->getXenAPI()->getUser($recipient);
+                        if (!$user->isRegistered()) {
+                            // Requested user was not registered, throw error.
+                            $this->throwError(4, 'user', $recipient);
+                        }
+                    }
+                } else {
+                    $user = $this->getXenAPI()->getUser($this->getRequest('recipients'));
+                    if (!$user->isRegistered()) {
+                        // Requested user was not registered, throw error.
+                        $this->throwError(4, 'user', $this->getRequest('recipients'));
+                    }
+                }
+
+                foreach ($additional_parameters as $additional_parameter) {
+                    // Check if the additional parameter is set and not empty.
+                    $this->checkRequestParameter($additional_parameter, FALSE);
+
+                    if ($this->getRequest($additional_parameter)) {
+                        // Set the request value.
+                        $conversation_data[$additional_parameter] = $this->getRequest($additional_parameter);
+                    }
+                }
+
+                // Create the post object.
+                $conversation_results = $this->xenAPI->createConversation($this->getUser(), $conversation_data);
+
+                $this->handleUserError($conversation_results, 'conversation_creation_error', 'creating a new conversation');
             case 'createpost': 
                 /**
                 * TODO
@@ -798,46 +903,7 @@ class RestAPI {
                 // Create the post object.
                 $post_results = $this->xenAPI->createPost($this->getUser(), $post_data);
 
-                if (!empty($post_results['error'])) {
-                    // The post creation failed, process errors.
-                    if (is_array($post_results['errors'])) {
-                        // The error message was an array, loop through the messages.
-                        $error_keys = array();
-                        foreach ($post_results['errors'] as $error_field => $error) {
-                            if (!($error instanceof XenForo_Phrase)) {
-                                $post_error = array(
-                                    'error_id' => 1,
-                                    'error_key' => 'field_not_recognised', 
-                                    'error_field' => $error_field, 
-                                    'error_phrase' => $error
-                                );
-                                $this->throwError(self::USER_ERROR, $post_error, 'creating a new post');
-                            }
-
-                            // Let's init the post creation error array.
-                            $post_error = array(
-                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
-                                'error_key' => $error->getPhraseName(), 
-                                'error_field' => $error_field, 
-                                'error_phrase' => $error->render()
-                            );
-
-                            $this->throwError(self::USER_ERROR, $post_error, 'creating a new post');
-                        }
-                    } else {
-                        $post_error = array(
-                            'error_id' => $post_results['error'],
-                            'error_key' => 'general_user_post_creation_error', 
-                            'error_phrase' => $post_results['errors']
-                        );
-                        $this->throwError(self::USER_ERROR, $post_error, 'creating a new post');
-                        // Throw error message.
-                    }
-                } else {
-                    // Post creation was successful, return results.
-                    $this->sendResponse($post_results);
-                }
-                break;
+                $this->handleUserError($post_results, 'post_creation_error', 'creating a new post');
             case 'createthread': 
                 /**
                 * TODO
@@ -916,46 +982,7 @@ class RestAPI {
                 // Create the thread object.
                 $thread_results = $this->xenAPI->createThread($this->getUser(), $thread_data);
 
-                if (!empty($thread_results['error'])) {
-                    // The thread creation failed, process errors.
-                    if (is_array($thread_results['errors'])) {
-                        // The error message was an array, loop through the messages.
-                        $error_keys = array();
-                        foreach ($thread_results['errors'] as $error_field => $error) {
-                            if (!($error instanceof XenForo_Phrase)) {
-                                $thread_error = array(
-                                    'error_id' => 1,
-                                    'error_key' => 'field_not_recognised', 
-                                    'error_field' => $error_field, 
-                                    'error_phrase' => $error
-                                );
-                                $this->throwError(self::USER_ERROR, $thread_error, 'creating a new thread');
-                            }
-
-                            // Let's init the thread creation error array.
-                            $thread_error = array(
-                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
-                                'error_key' => $error->getPhraseName(), 
-                                'error_field' => $error_field, 
-                                'error_phrase' => $error->render()
-                            );
-
-                            $this->throwError(self::USER_ERROR, $thread_error, 'creating a new thread');
-                        }
-                    } else {
-                        $thread_error = array(
-                            'error_id' => $thread_results['error'],
-                            'error_key' => 'general_user_post_creation_error', 
-                            'error_phrase' => $thread_results['errors']
-                        );
-                        $this->throwError(self::USER_ERROR, $thread_error, 'creating a new thread');
-                        // Throw error message.
-                    }
-                } else {
-                    // Thread creation was successful, return results.
-                    $this->sendResponse($thread_results);
-                }
-                break;
+                $this->handleUserError($Create, 'thread_creation_error', 'creating a new thread');
             case 'edituser':
                 /**
                 * Edits the user.
@@ -2317,6 +2344,52 @@ class XenAPI {
         } catch (Exception $ignore) {
             // The resource model is missing, ignore the exceiption.
         }
+    }
+
+    public function createConversation($user, $conversation_data = array()) { 
+       if ($user == NULL) {
+            // An user is required to create a new conversation.
+            return array('error' => 13, 'errors' => 'User is required to create a conversation.');
+        }
+
+        $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+        $this->checkUserPermissions($user);
+        if (!$this->getModels()->getModel('user')->canStartConversations($null, $user->getData())) {
+            // User does not have permission to post in this thread.
+            return array('error' => 14, 'errors' => 'The user does not have permissions to create a new conversation.');
+        }
+
+        // TODO: Check if user has permissions to start a conversation with the specified recepients.
+
+        $conversation_data['message'] = XenForo_Helper_String::autoLinkBbCode($conversation_data['message']);
+
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_ConversationMaster');
+        $writer->setExtraData(XenForo_DataWriter_ConversationMaster::DATA_ACTION_USER, $user->data);
+        $writer->setExtraData(XenForo_DataWriter_ConversationMaster::DATA_MESSAGE, $conversation_data['message']);
+        $writer->set('user_id', $user->data['user_id']);
+        $writer->set('username', $user->data['username']);
+        $writer->set('title', $conversation_data['title']);
+        $writer->set('open_invite', $conversation_data['open_invite']);
+        $writer->set('conversation_open', $conversation_data['conversation_locked'] ? 0 : 1);
+        $writer->addRecipientUserNames(explode(',', $conversation_data['recipients'])); // checks permissions
+
+        $messageDw = $writer->getFirstMessageDw();
+        $messageDw->set('message', $conversation_data['message']);
+
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The post creation failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        $writer->save();
+        $conversation = $writer->getMergedData();
+
+        $this->getModels()->checkModel('conversation', XenForo_Model::create('XenForo_Model_Conversation'));
+        $this->getModels()->getModel('conversation')->markConversationAsRead($conversation['conversation_id'], $user->data['user_id'], XenForo_Application::$time);
+
+        return $conversation;
     }
 
     public function createPost($user, $post_data = array()) { 
