@@ -78,35 +78,36 @@ class RestAPI {
     *       used when the user is using the 'username:hash' format for the 'hash' argument.
     */
     private $actions = array(
-        'authenticate'            => 'public',
-        'createconversation'      => 'authenticated',
-        'createconversationreply' => 'authenticated',
-        'createpost'              => 'authenticated',
-        'createprofilepost'       => 'authenticated',
-        'createthread'            => 'authenticated',
-        'edituser'                => 'api_key',
-        'getactions'              => 'public', 
-        'getaddon'                => 'administrator',
-        'getaddons'               => 'administrator',
-        'getalerts'               => 'private', 
-        'getavatar'               => 'public',
-        'getconversation'         => 'private',
-        'getconversations'        => 'private',
-        'getgroup'                => 'public', 
-        'getnode'                 => 'public',
-        'getnodes'                => 'public',
-        'getpost'                 => 'public',
-        'getposts'                => 'public',
-        'getprofilepost'          => 'authenticated',
-        'getprofileposts'         => 'authenticated',
-        'getresource'             => 'administrator',
-        'getresources'            => 'administrator',
-        'getstats'                => 'public',
-        'getthread'               => 'public',
-        'getthreads'              => 'public',
-        'getuser'                 => 'authenticated', 
-        'getusers'                => 'public',
-        'register'                => 'api_key'
+        'authenticate'             => 'public',
+        'createconversation'       => 'authenticated',
+        'createconversationreply'  => 'authenticated',
+        'createpost'               => 'authenticated',
+        'createprofilepost'        => 'authenticated',
+        'createprofilepostcomment' => 'authenticated',
+        'createthread'             => 'authenticated',
+        'edituser'                 => 'api_key',
+        'getactions'               => 'public', 
+        'getaddon'                 => 'administrator',
+        'getaddons'                => 'administrator',
+        'getalerts'                => 'private', 
+        'getavatar'                => 'public',
+        'getconversation'          => 'private',
+        'getconversations'         => 'private',
+        'getgroup'                 => 'public', 
+        'getnode'                  => 'public',
+        'getnodes'                 => 'public',
+        'getpost'                  => 'public',
+        'getposts'                 => 'public',
+        'getprofilepost'           => 'authenticated',
+        'getprofileposts'          => 'authenticated',
+        'getresource'              => 'administrator',
+        'getresources'             => 'administrator',
+        'getstats'                 => 'public',
+        'getthread'                => 'public',
+        'getthreads'               => 'public',
+        'getuser'                  => 'authenticated', 
+        'getusers'                 => 'public',
+        'register'                 => 'api_key'
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
@@ -982,6 +983,46 @@ class RestAPI {
                 $profile_post_results = $this->xenAPI->createProfilePost($user, $profile_post_data);
 
                 $this->handleUserError($profile_post_results, 'profile_post_creation_error', 'creating a new profile post');
+            case 'createprofilepostcomment': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                    // The 'grab_as' argument has not been set, throw error.
+                    $this->throwError(3, 'grab_as');
+                } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
+                    // Throw error if the 'grab_as' argument is set but empty.
+                    $this->throwError(1, 'grab_as');
+                } 
+
+                // Array of required parameters.
+                $required_parameters = array('profile_post_id', 'message');
+
+                foreach ($required_parameters as $required_parameter) {
+                    // Check if the required parameter is set and not empty.
+                    $this->checkRequestParameter($required_parameter);
+                }
+
+                // Try to grab the node from XenForo.
+                $profile_post = $this->getXenAPI()->getProfilePost($this->getRequest('profile_post_id'), array(), $this->getUser());
+                if ($profile_post == NULL) {
+                     // Could not find the node, throw error.
+                    $this->throwError(19, 'profile post', $this->getRequest('profile_post_id'));
+                }
+
+                $profile_post_comment_data = array(
+                    'profile_post_id' => $profile_post['profile_post_id'],
+                    'profile_user_id' => $profile_post['profile_user_id'],
+                    'message'         => $this->getRequest('message')
+                );
+
+                // Create the post object.
+                $profile_post_comment_results = $this->xenAPI->createProfilePostComment($this->getUser(), $profile_post_comment_data);
+
+                $this->handleUserError($profile_post_comment_results, 'profile_post_comment_creation_error', 'creating a new profile post comment');
             case 'createthread': 
                 /**
                 * TODO
@@ -2616,7 +2657,6 @@ class XenAPI {
         $this->checkUserPermissions($profile_user, array('followingUserId' => $user->data['user_id']));
         $this->checkUserPermissions($user, array('followingUserId' => $profile_user->data['user_id']));
 
-
         if (!$this->getModels()->getModel('user_profile')->canPostOnProfile($profile_user->getData(), $null, $user->getData())) {
             return array('error' => 14, 'errors' => 'The user does not have permissions to create a new profile post');
         }
@@ -2646,6 +2686,47 @@ class XenAPI {
 
         return $this->getProfilePost($profile_post_id);
     }
+
+    public function createProfilePostComment($user, $profile_post_data = array()) { 
+       if ($user == NULL) {
+            // An user is required to create a new post.
+            return array('error' => 13, 'errors' => 'User is required to create a profile post comment.');
+        }
+
+        $this->getModels()->checkModel('profile_post', XenForo_Model::create('XenForo_Model_ProfilePost'));
+
+        $profile_post = $this->getProfilePost($profile_post_data['profile_post_id']);
+
+        $profile_user = $profile_post_data['profile_user_id'];
+        $this->checkUserPermissions($profile_user, array('followingUserId' => $user->data['user_id']));
+        $this->checkUserPermissions($user, array('followingUserId' => $profile_user->data['user_id']));
+
+        if (!$this->getModels()->getModel('profile_post')->canCommentOnProfilePost($profile_post, $profile_user->getData(), $null, $user->getData())) {
+            return array('error' => 14, 'errors' => 'The user does not have permissions to create a new profile post');
+        }
+
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_ProfilePostComment');
+        $writer->setExtraData(XenForo_DataWriter_ProfilePostComment::DATA_PROFILE_USER, $profile_user->getData());
+        $writer->setExtraData(XenForo_DataWriter_ProfilePostComment::DATA_PROFILE_POST, $profile_post);
+        $writer->bulkSet(array(
+            'profile_post_id' => $profile_post['profile_post_id'],
+            'user_id' => $user->data['user_id'],
+            'username' => $user->data['username'],
+            'message' => $profile_post_data['message']
+        ));
+
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The profile post comment creation failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        $writer->save();
+
+        return array_values($this->getModels()->getModel('profile_post')->getProfilePostCommentsByProfilePost($profile_post['profile_post_id']));
+    }
+
 
     public function createThread($user, $thread_data = array()) {
         // TODO: Add support for polls. 
