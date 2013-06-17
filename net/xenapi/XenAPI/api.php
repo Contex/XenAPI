@@ -840,12 +840,9 @@ class RestAPI {
                 }
 
                 foreach ($additional_parameters as $additional_parameter) {
-                    // Check if the additional parameter is set and not empty.
-                    $this->checkRequestParameter($additional_parameter, FALSE);
-
-                    if ($this->getRequest($additional_parameter)) {
+                    if ($this->hasRequest($additional_parameter)) {
                         // Set the request value.
-                        $conversation_data[$additional_parameter] = $this->getRequest($additional_parameter);
+                        $conversation_data[$additional_parameter] = TRUE;
                     }
                 }
 
