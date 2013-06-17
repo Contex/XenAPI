@@ -2564,6 +2564,49 @@ class XenAPI {
         return $post;
     }
 
+    public function createProfilePost($user, $profile_post_data = array()) { 
+       if ($user == NULL) {
+            // An user is required to create a new post.
+            return array('error' => 13, 'errors' => 'User is required to create a profile post.');
+        }
+
+        $this->getModels()->checkModel('user_profile', XenForo_Model::create('XenForo_Model_UserProfile'));
+
+        $profile_user = $profile_post_data['user_id'];
+        $this->checkUserPermissions($profile_user, array('followingUserId' => $user->data['user_id']));
+        $this->checkUserPermissions($user, array('followingUserId' => $profile_user->data['user_id']));
+
+
+        if (!$this->getModels()->getModel('user_profile')->canPostOnProfile($profile_user->getData(), $null, $user->getData())) {
+            return array('error' => 14, 'errors' => 'The user does not have permissions to create a new profile post');
+        }
+
+        if ($user->data['user_id'] == $profile_post_data['user_id']) {
+            $profile_post_id = $this->getModels()->getModel('user_profile')->updateStatus($profile_post_data['message'], XenForo_Application::$time, $user->getData());
+        } else {
+            $this->getModels()->checkModel('profile_post', XenForo_Model::create('XenForo_Model_ProfilePost'));
+            $writer = XenForo_DataWriter::create('XenForo_DataWriter_DiscussionMessage_ProfilePost');
+            $writer->set('user_id', $user->data['user_id']);
+            $writer->set('username', $user->data['username']);
+            $writer->set('message', $profile_post_data['message']);
+            $writer->set('profile_user_id', $profile_user->data['user_id']);
+            $writer->set('message_state', $this->getModels()->getModel('profile_post')->getProfilePostInsertMessageState($profile_user->getData(), $user->getData()));
+            $writer->setExtraData(XenForo_DataWriter_DiscussionMessage_ProfilePost::DATA_PROFILE_USER, $profile_user->getData());
+            $writer->preSave();
+
+            if ($writer->hasErrors()) {
+                // The profile post creation failed, return errors.
+                return array('error' => TRUE, 'errors' => $writer->getErrors());
+            }
+
+            $writer->save();
+
+            $profile_post_id = $writer->get('profile_post_id');
+        }
+
+        return $this->getProfilePost($profile_post_id);
+    }
+
     public function createThread($user, $thread_data = array()) {
         // TODO: Add support for polls. 
        if ($user == NULL) {
@@ -3024,20 +3067,30 @@ class XenAPI {
     /**
     * TODO
     */
-    public function checkUserPermissions(&$user) {
+    public function checkUserPermissions(&$user, array $fetchOptions = array()) {
         if ($user != NULL) {
             $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
 
-            if (empty($user->data['global_permission_cache'])) {
-                // Check if the user data has permissions cache set, grab it if not.
-                $user = $this->getUser($user->getID(), array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS));
-            }
+            if (!is_array($user) && !($user instanceof User)) {
+                $user = $this->getUser($user, array_merge($fetchOptions, array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS)));
+                if (empty($user->data['permissions'])) {
+                    // Check if the user data has the permissions set, set it if not.
+                    $user->data['permissions'] = XenForo_Permission::unserializePermissions($user->data['global_permission_cache']);
+                    // Unset the permissions serialized cache as we don't need it anymore.
+                    unset($user->data['global_permission_cache']);
+                }
+            } else {
+                if (empty($user->data['global_permission_cache'])) {
+                    // Check if the user data has permissions cache set, grab it if not.
+                    $user = $this->getUser($user->getID(), array_merge($fetchOptions, array('join' => XenForo_Model_User::FETCH_USER_PERMISSIONS)));
+                }
 
-            if (empty($user->data['permissions'])) {
-                // Check if the user data has the permissions set, set it if not.
-                $user->data['permissions'] = XenForo_Permission::unserializePermissions($user->data['global_permission_cache']);
-                // Unset the permissions serialized cache as we don't need it anymore.
-                unset($user->data['global_permission_cache']);
+                if (empty($user->data['permissions'])) {
+                    // Check if the user data has the permissions set, set it if not.
+                    $user->data['permissions'] = XenForo_Permission::unserializePermissions($user->data['global_permission_cache']);
+                    // Unset the permissions serialized cache as we don't need it anymore.
+                    unset($user->data['global_permission_cache']);
+                }
             }
         }
     }
