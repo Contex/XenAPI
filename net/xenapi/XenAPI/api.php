@@ -89,6 +89,7 @@ class RestAPI {
         'getaddons'               => 'administrator',
         'getalerts'               => 'private', 
         'getavatar'               => 'public',
+        'getconversation'         => 'private',
         'getconversations'        => 'private',
         'getgroup'                => 'public', 
         'getnode'                 => 'public',
@@ -108,7 +109,7 @@ class RestAPI {
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
-    private $user_actions = array('getalerts', 'getavatar', 'getconversations', 'getuser');
+    private $user_actions = array('getalerts', 'getavatar', 'getconversation', 'getconversations', 'getuser');
     
     // List of general errors, this is where the 'throwError' function gets the messages from.
     private $general_errors = array(
@@ -1396,6 +1397,58 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse(array('avatar' => $user->getAvatar($size)));
+                break;
+            case 'getconversation':
+                if (!$this->hasRequest('conversation_id')) {
+                    // The 'conversation_id' argument has not been set, throw error.
+                    $this->throwError(3, 'conversation_id');
+                    break;
+                } else if (!$this->getRequest('conversation_id')) {
+                    // Throw error if the 'conversation_id' argument is set but empty.
+                    $this->throwError(1, 'conversation_id');
+                    break;
+                }
+
+                // Try to grab the thread from XenForo.
+                $conversation = $this->getXenAPI()->getConversation($this->getRequest('conversation_id'), $user, array('join' => XenForo_Model_Conversation::FETCH_FIRST_MESSAGE));
+                if ($conversation == NULL) {
+                     // Could not find the conversation, throw error.
+                    $this->throwError(19, 'conversation', $this->getRequest('conversation_id'));
+                }
+
+                // Send the response.
+                $this->sendResponse($conversation);
+            case 'getgroup': 
+                /**
+                * Returns the group information depending on the 'value' argument.
+                *
+                * NOTE: Only group titles, user titles and group ID's can be used for the 'value' parameter.
+                *
+                * EXAMPLE:
+                *   - api.php?action=getGroup&value=1
+                *   - api.php?action=getGroup&value=Guest
+                */
+                if (!$this->hasRequest('value')) {
+                    // The 'value' argument has not been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' argument is set but empty.
+                    $this->throwError(1, 'value');
+                    break;
+                }
+                $string = $this->getRequest('value');
+                
+                // Get the group from XenForo.
+                $group = $this->getXenAPI()->getGroup($string);
+
+                if (!$group) {
+                    // Could not find any groups, throw error.
+                    $this->throwError(4, 'group', $string);
+                } else {
+                    // Group was found, send response.
+                    $this->sendResponse($group);
+                }
                 break;
             case 'getconversations':
                 /**
