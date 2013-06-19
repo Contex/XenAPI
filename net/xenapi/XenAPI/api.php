@@ -193,7 +193,6 @@ class RestAPI {
     * The data gets set here depending on what kind of request method is being used.
     */
     public function __construct($api_key = NULL) {
-        $this->start_time = time();
         $this->method = strtolower($_SERVER['REQUEST_METHOD']);  
         switch ($this->method) {  
             case 'get':  
@@ -2510,9 +2509,8 @@ class RestAPI {
     * Send the response array in JSON.
     */
     public function sendResponse($data) {
-        if ($this->hasRequest('performance')) {
-            $time_end = microtime(TRUE);
-            $data['execution_time'] = $time_end - $this->start_time;
+        if ($this->hasRequest('debug')) {
+            $data['debug'] = $this->getXenAPI()->getDebugData();
         }
         header('Content-type: application/json');
         die(json_encode($data));

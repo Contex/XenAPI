@@ -905,6 +905,22 @@ class XenAPI {
         return $node_list;
     }
 
+    public function getDebugData() {
+        $database_debug = XenForo_Debug::getDatabaseDebugInfo($this->getModels()->getModel('database'));
+        unset($database_debug['queryHtml']);
+        $included_files_debug = XenForo_Debug::getIncludedFilesDebugInfo(get_included_files());
+        unset($included_files_debug['includedFileHtml']);
+        return array(
+            'time'     => microtime(TRUE) - XenForo_Application::get('page_start_time'),
+            'database' => $database_debug,
+            'memory'   => array(
+                'usage' => memory_get_usage(),
+                'peak'  => memory_get_peak_usage()
+            ),
+            'included_files' => $included_files_debug
+        );
+    }
+
     /**
     * TODO
     */
