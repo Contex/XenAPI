@@ -85,6 +85,7 @@ class RestAPI {
         'createprofilepost'        => 'authenticated',
         'createprofilepostcomment' => 'authenticated',
         'createthread'             => 'authenticated',
+        'deletepost'               => 'authenticated',
         'edituser'                 => 'api_key',
         'getactions'               => 'public', 
         'getaddon'                 => 'administrator',
@@ -1101,7 +1102,45 @@ class RestAPI {
                 // Create the thread object.
                 $thread_results = $this->xenAPI->createThread($this->getUser(), $thread_data);
 
-                $this->handleUserError($Create, 'thread_creation_error', 'creating a new thread');
+                $this->handleUserError($thread_results, 'thread_creation_error', 'creating a new thread');
+            case 'deletepost': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if (!$this->hasRequest('post_id')) {
+                    // The 'post_id' argument has not been set, throw error.
+                    $this->throwError(3, 'post_id');
+                    break;
+                } else if (!$this->getRequest('post_id')) {
+                    // Throw error if the 'post_id' argument is set but empty.
+                    $this->throwError(1, 'post_id');
+                    break;
+                }
+
+                if ($this->hasRequest('reason')) {
+                    if (!$this->getRequest('reason')) {
+                        // Throw error if the 'reason' argument is set but empty.
+                        $this->throwError(1, 'reason');
+                        break;
+                    }
+                    $reason = $this->getRequest('reason');
+                } else {
+                    $reason = NULL;
+                }
+
+                // Try to grab the post from XenForo.
+                $post = $this->getXenAPI()->getPost($this->getRequest('post_id'), array(), $this->getUser());
+                if ($post == NULL) {
+                     // Could not find the post, throw error.
+                    $this->throwError(19, 'post', $this->getRequest('post_id'));
+                }
+
+                $delete_results = $this->xenAPI->deletePost($this->getRequest('post_id'), $reason, $this->hasRequest('hard_delete'), $this->getUser());
+
+                $this->handleUserError($delete_results, 'post_deletion_error', 'deleting post');
             case 'edituser':
                 /**
                 * Edits the user.
@@ -2611,7 +2650,7 @@ class XenAPI {
 
         $thread = $this->getThread($post_data['thread_id']);
         $forum = $this->getForum($thread['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
-        $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
+        $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
 
         if (!$this->canViewThread($user, $thread, $permissions) || !$this->canReplyToThread($user, $thread, $forum, $permissions)) {
             // User does not have permission to post in this thread.
@@ -2809,6 +2848,47 @@ class XenAPI {
         $this->getModels()->getModel('thread')->markThreadRead($thread, $forum, XenForo_Application::$time, $user->getData());
 
         return $thread;
+    }
+
+    public function deletePost($post_id, $reason = NULL, $hard_delete = FALSE, $user = NULL) { 
+        if ($hard_delete) {
+            $delete_type = 'hard';
+        } else {
+            $delete_type = 'soft';
+        }
+        if ($reason != NULL) {
+            $options = array('reason' => $reason);
+        } else {
+            $options = array();
+        }
+
+        $post = $this->getPost($post_id);
+        if ($user != NULL) {
+            $fetchOptions = array('permissionCombinationId' => $user->data['permission_combination_id']);
+            $thread = $this->getThread($post['thread_id'], $fetchOptions);
+            $forum = $this->getForum($thread['node_id'], $fetchOptions);
+            $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
+        } else {
+            $thread = $this->getThread($post['thread_id']);
+            $forum = $this->getForum($thread['node_id']);  
+        }
+
+        $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+
+        if ($user != NULL && (!$this->canViewThread($user, $thread, $permissions) || !$this->getModels()->getModel('post')->canDeletePost($post, $thread, $forum, $delete_type, $null, $permissions, $user->getData()))) {
+            // User does not have permission to delete this post.
+            return array('error' => 14, 'errors' => 'The user does not have permissions to delete this post.');
+        }
+
+        $this->getModels()->getModel('post')->deletePost($post_id, $delete_type, $options, $forum);
+
+        if ($delete_type == 'hard') {
+            $post['message_state'] = 'hard_deleted';
+        } else {
+            $post['message_state'] = 'deleted';
+        }
+
+        return $post;
     }
 
     public function editUser($user, $edit_data = array()) {
