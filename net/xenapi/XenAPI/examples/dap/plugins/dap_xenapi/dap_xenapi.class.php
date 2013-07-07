@@ -688,14 +688,27 @@ class dap_xenapi {
 		Check if the JSON decode failed 
 		(meaning that the results was not a JSON string).
  		*/
- 		if (json_last_error() != JSON_ERROR_NONE) 
- 		{
+		if (function_exists('json_last_error'))
+		{
+			// PHP version >= 5.3.0 required for json_last_error().
+			if (json_last_error() != JSON_ERROR_NONE) 
+	 		{
+				// The request failed, throw exception.
+				throw new Exception(
+					'Request failed with action: ' . $action 
+				  . ', results was not a JSON string: ' . $response
+				);
+	 		}
+		}
+		else if ($response_decoded === NULL) 
+		{
+			// PHP < 5.3.0 workaround for json_last_error().
 			// The request failed, throw exception.
 			throw new Exception(
 				'Request failed with action: ' . $action 
 			  . ', results was not a JSON string: ' . $response
 			);
- 		}
+		}
 
  		/* 
  		The results was a JSON response and contained no errors, 
