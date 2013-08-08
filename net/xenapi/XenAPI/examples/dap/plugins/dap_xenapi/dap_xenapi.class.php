@@ -160,7 +160,7 @@ class dap_xenapi {
 
 		// Set the variables of the DAP user.
 		$user_data = array(
-			'user' => $username . ' ' . $user_id
+			'user' => $username
 		);
 
 		// Split the parameters into an array.
