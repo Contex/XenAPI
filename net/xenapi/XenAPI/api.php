@@ -3047,6 +3047,11 @@ class XenAPI {
             // Log the IP of the user that registered.
             XenForo_Model_Ip::log($user['user_id'], 'user', $user['user_id'], 'register', $ip_address);
         }
+
+        // Send confirmation email
+        if ($user['user_state'] == 'email_confirm') {
+            XenForo_Model::create('XenForo_Model_UserConfirmation')->sendEmailConfirmation($user);
+        }
          
         return $user;
     }
