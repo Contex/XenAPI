@@ -52,6 +52,30 @@ class XenAPI {
         }
     }
 
+    public function createAlert($alert_user, $cause_user, $alert_data = array()) { 
+        if ($alert_user == NULL) {
+            // An user is required to create a new alert.
+            return array('error' => 13, 'errors' => 'User is required to create an alert.');
+        } else if ($cause_user == NULL) {
+            // A cause user is required to create a new alert.
+            return array('error' => 13, 'errors' => 'User is required to create an alert.');
+        }
+
+        $this->getModels()->checkModel('alert', XenForo_Model::create('XenForo_Model_Alert'));
+
+        $this->getModels()->getModel('alert')->alertUser(
+            $alert_user->getID(), 
+            $cause_user->getID(), 
+            $cause_user->getUsername(), 
+            $alert_data['content_type'], 
+            $alert_data['content_id'], 
+            $alert_data['action']
+        );
+
+        
+        return $alert_data;
+    }
+
     public function createConversation($user, $conversation_data = array()) { 
        if ($user == NULL) {
             // An user is required to create a new conversation.

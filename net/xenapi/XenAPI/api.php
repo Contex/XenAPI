@@ -84,6 +84,7 @@ class RestAPI {
     */
     private $actions = array(
         'authenticate'             => 'public',
+        'createalert'              => 'api_key',
         'createconversation'       => 'authenticated',
         'createconversationreply'  => 'authenticated',
         'createpost'               => 'authenticated',
@@ -794,6 +795,73 @@ class RestAPI {
                     }
                 }
                 break;
+            case 'createalert': 
+                if (!$this->hasRequest('user')) {
+                    // The 'user' argument has not been set, throw error.
+                    $this->throwError(3, 'user');
+                    break;
+                } else if (!$this->getRequest('user')) {
+                    // Throw error if the 'user' argument is set but empty.
+                    $this->throwError(1, 'user');
+                    break;
+                } else if (!$this->hasRequest('cause_user')) {
+                    // The 'cause_user' argument has not been set, throw error.
+                    $this->throwError(3, 'cause_user');
+                    break;
+                } else if (!$this->getRequest('cause_user')) {
+                    // Throw error if the 'cause_user' argument is set but empty.
+                    $this->throwError(1, 'cause_user');
+                    break;
+                } else if (!$this->hasRequest('content_type')) {
+                    // The 'content_type' argument has not been set, throw error.
+                    $this->throwError(3, 'content_type');
+                    break;
+                } else if (!$this->getRequest('content_type')) {
+                    // Throw error if the 'content_type' argument is set but empty.
+                    $this->throwError(1, 'content_type');
+                    break;
+                } else if (!$this->hasRequest('content_id')) {
+                    // The 'content_id' argument has not been set, throw error.
+                    $this->throwError(3, 'content_id');
+                    break;
+                } else if (!$this->getRequest('content_id')) {
+                    // Throw error if the 'content_id' argument is set but empty.
+                    $this->throwError(1, 'content_id');
+                    break;
+                } else if (!$this->hasRequest('alert_action')) {
+                    // The 'alert_action' argument has not been set, throw error.
+                    $this->throwError(3, 'alert_action');
+                    break;
+                } else if (!$this->getRequest('alert_action')) {
+                    // Throw error if the 'alert_action' argument is set but empty.
+                    $this->throwError(1, 'alert_action');
+                    break;
+                }
+
+                $alert_user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                if (!$alert_user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwError(4, 'user', $this->getRequest('user'));
+                }
+
+                $cause_user = $this->getXenAPI()->getUser($this->getRequest('cause_user'));
+                if (!$cause_user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwError(4, 'cause_user', $this->getRequest('cause_user'));
+                }
+
+                $alert_data = array(
+                    'content_type' => $this->getRequest('content_type'),
+                    'content_id'   => $this->getRequest('content_id'),
+                    'action' => $this->getRequest('alert_action')
+                );
+
+                // Create the thread object.
+                $alert_results = $this->xenAPI->createAlert($alert_user, $cause_user, $alert_data);
+
+                // Alert was successful, return results.
+                $this->sendResponse($alert_results);
+
             case 'createconversation': 
                 /**
                 * TODO
