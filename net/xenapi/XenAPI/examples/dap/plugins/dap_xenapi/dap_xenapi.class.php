@@ -160,7 +160,7 @@ class dap_xenapi {
 
 		// Set the variables of the DAP user.
 		$user_data = array(
-			'user' => $username . ' ' . $user_id
+			'user' => $username
 		);
 
 		// Split the parameters into an array.
@@ -252,8 +252,24 @@ class dap_xenapi {
 		Check if the JSON decode failed 
 		(meaning that the results was not a JSON string).
 		*/
- 		if (json_last_error() != JSON_ERROR_NONE) 
- 		{
+		if (function_exists('json_last_error'))
+		{
+			// PHP version >= 5.3.0 required for json_last_error().
+			if (json_last_error() != JSON_ERROR_NONE) 
+	 		{
+				// The request failed, throw exception.
+				$this->log(
+					'handleAPIError', 
+					'Request failed, results was not a JSON string: ' 
+						. $api_response,
+		  			'error'
+				);
+				return NULL;
+	 		}
+		}
+		else if ($api_response === NULL) 
+		{
+			// PHP < 5.3.0 workaround for json_last_error().
 			// The request failed, throw exception.
 			$this->log(
 				'handleAPIError', 
@@ -262,7 +278,7 @@ class dap_xenapi {
 	  			'error'
 			);
 			return NULL;
- 		}
+		}
 
 		// Log the error ID and error message.
 		$this->log(
@@ -672,14 +688,27 @@ class dap_xenapi {
 		Check if the JSON decode failed 
 		(meaning that the results was not a JSON string).
  		*/
- 		if (json_last_error() != JSON_ERROR_NONE) 
- 		{
+		if (function_exists('json_last_error'))
+		{
+			// PHP version >= 5.3.0 required for json_last_error().
+			if (json_last_error() != JSON_ERROR_NONE) 
+	 		{
+				// The request failed, throw exception.
+				throw new Exception(
+					'Request failed with action: ' . $action 
+				  . ', results was not a JSON string: ' . $response
+				);
+	 		}
+		}
+		else if ($response_decoded === NULL) 
+		{
+			// PHP < 5.3.0 workaround for json_last_error().
 			// The request failed, throw exception.
 			throw new Exception(
 				'Request failed with action: ' . $action 
 			  . ', results was not a JSON string: ' . $response
 			);
- 		}
+		}
 
  		/* 
  		The results was a JSON response and contained no errors, 

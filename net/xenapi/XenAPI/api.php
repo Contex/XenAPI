@@ -2516,4 +2516,3 @@ class RestAPI {
         die(json_encode($data));
     }
 }
-?>
