@@ -339,7 +339,8 @@ class RestAPI {
                     // User is registered, get the hash from the authentication record.
                     $record = $user->getAuthenticationRecord();
                     $ddata = unserialize($record['data']);
-                    if ($ddata['hash'] == $array[1]) {
+                    $decoded = base64_decode($array[1], TRUE);
+                    if ($ddata['hash'] == $array[1] || ($decoded !== FALSE && $ddata['hash'] == $decoded)) {
                         // The hash in the authentication record equals the hash in the 'hash' argument.
                         return TRUE;
                     }
@@ -788,7 +789,7 @@ class RestAPI {
                         $record = $user->getAuthenticationRecord();
                         $ddata = unserialize($record['data']);
                         // Send the hash in responsel.
-                        $this->sendResponse(array('hash' => $ddata['hash']));
+                        $this->sendResponse(array('hash' => base64_encode($ddata['hash'])));
                     } else {
                         // The username or password was wrong, throw error.
                         $this->throwError(5, 'Invalid username or password!');
@@ -4843,6 +4844,7 @@ class User {
             $ddata = unserialize($record['data']);
             return $ddata['hash'] == $password;
         } else {
+            $record = $this->getAuthenticationRecord();
             return $this->models->getUserModel()->validateAuthentication($this->data['username'], $password); 
         }
     }
