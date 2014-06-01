@@ -2061,12 +2061,15 @@ class RestAPI {
                 * or just the resources created by an author.
                 *
                 * NOTE: Only usernames and user ID's can be used for the 'author' parameter.
+                * NOTE: Only resource category ID's can be used for the 'category_id' parameter.
                 *
                 * EXAMPLES: 
                 *   - api.php?action=getResources&hash=USERNAME:HASH
                 *   - api.php?action=getResources&hash=API_KEY
                 *   - api.php?action=getResources&author=Contex&hash=USERNAME:HASH
                 *   - api.php?action=getResources&author=1&hash=API_KEY
+                *   - api.php?action=getResources&author=Contex&category_id=1&hash=USERNAME:HASH
+                *   - api.php?action=getResources&author=1&category_id=2&hash=API_KEY
                 */
                 /* 
                 * Check the resource addon is installed
@@ -2075,6 +2078,23 @@ class RestAPI {
                     $this->throwError(16, 'resource');
                     break;
                 }
+                /* 
+                * Check if the request has the 'category_id' argument set.
+                */
+                if ($this->hasRequest('category_id')) {
+                    if (!$this->getRequest('category_id')) {
+                        // Throw error if the 'category_id' argument is set but empty.
+                        $this->throwError(1, 'category_id');
+                        break;
+                    }
+                    // Use the value from the 'category_id' argument to set the variables.
+                    $category_id = $this->getRequest('category_id');
+                    
+                } else {
+                    // Category ID was not set, ignore it.
+                    $category_id = NULL;
+                }
+
                 /* 
                 * Check if the request has the 'author' argument set, 
                 * if it doesn't it uses the default (all).
@@ -2086,7 +2106,7 @@ class RestAPI {
                         break;
                     }
                     // Use the value from the 'author' argument to get the resources.
-                    $resources_list = $this->xenAPI->getResources($this->getRequest('author'));
+                    $resources_list = $this->getXenAPI()->getResources($category_id, $this->getRequest('author'));
                     if (count($resources_list) == 0) {
                        // Throw error if the 'author' is not the author of any resources.
                         $this->throwError(14, $this->getRequest('author'));
@@ -2094,7 +2114,7 @@ class RestAPI {
                     }
                 } else {
                     // Get all the resources.
-                    $resources_list = $this->getXenAPI()->getResources();
+                    $resources_list = $this->getXenAPI()->getResources($category_id);
                 }
 
                 // Create an array for the resources.
@@ -3329,12 +3349,15 @@ class XenAPI {
     /**
     * Returns a list of resources.
     */
-    public function getResources($author = NULL) {
+    public function getResources($category_id = NULL, $author = NULL) {
         $resources_list = $this->getModels()->getModel('resource')->getResources();
         $resources = array();
         foreach ($resources_list as $resource) {
             $temp_resource = new Resource($resource);
-            if ($author != NULL 
+            if ($category_id !== NULL && is_numeric($category_id) && $temp_resource->getCategoryID() != $category_id) {
+                // The category_id input is not NULL and the resource is not in the category, skip the resource.
+                continue;
+            } else if ($author != NULL 
                 && (((is_numeric($author) && $temp_resource->getAuthorUserID() != $author) 
                     || strtolower($temp_resource->getAuthorUsername()) != strtolower($author)))) {
                 // The author input is not NULL and the resource is not owned by the author, skip the resource.
