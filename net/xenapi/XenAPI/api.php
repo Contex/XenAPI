@@ -2035,6 +2035,14 @@ class RestAPI {
                     $this->throwError(16, 'resource');
                     break;
                 }
+                $fetchOptions = array();
+                /* 
+                * Check if the request has the 'grab_description' argument set.
+                */
+                if ($this->hasRequest('grab_description')) {
+                    // Grab resources with description
+                    $fetchOptions['join'] = XenResource_Model_Resource::FETCH_DESCRIPTION;
+                }
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
@@ -2046,7 +2054,7 @@ class RestAPI {
                 }
                 $string = $this->getRequest('value');
                 // Try to grab the addon from XenForo.
-                $resource = $this->getXenAPI()->getResource($string);
+                $resource = $this->getXenAPI()->getResource($string, $fetchOptions);
                 if (!$resource->isValid()) {
                     // Could not find the resource, throw error.
                     $this->throwError(15, $string);
@@ -2078,6 +2086,15 @@ class RestAPI {
                     $this->throwError(16, 'resource');
                     break;
                 }
+                $conditions = array();
+                $fetchOptions = array();
+                /* 
+                * Check if the request has the 'grab_description' argument set.
+                */
+                if ($this->hasRequest('grab_description')) {
+                    // Grab resources with description
+                    $fetchOptions['join'] = XenResource_Model_Resource::FETCH_DESCRIPTION;
+                }
                 /* 
                 * Check if the request has the 'category_id' argument set.
                 */
@@ -2088,13 +2105,9 @@ class RestAPI {
                         break;
                     }
                     // Use the value from the 'category_id' argument to set the variables.
-                    $category_id = $this->getRequest('category_id');
+                    $conditions['resource_category_id'] = $this->getRequest('category_id');
                     
-                } else {
-                    // Category ID was not set, ignore it.
-                    $category_id = NULL;
                 }
-
                 /* 
                 * Check if the request has the 'author' argument set, 
                 * if it doesn't it uses the default (all).
@@ -2105,17 +2118,20 @@ class RestAPI {
                         $this->throwError(1, 'author');
                         break;
                     }
-                    // Use the value from the 'author' argument to get the resources.
-                    $resources_list = $this->getXenAPI()->getResources($category_id, $this->getRequest('author'));
-                    if (count($resources_list) == 0) {
-                       // Throw error if the 'author' is not the author of any resources.
-                        $this->throwError(14, $this->getRequest('author'));
+
+                    // Create a user variable with the 'author' argument.
+                    $user = $this->xenAPI->getUser($this->getRequest('author'));
+                    if (!$user->isRegistered()) {
+                        // Throw error if the 'author' user is not registered.
+                        $this->throwError(4, 'user', $this->getRequest('author'));
                         break;
                     }
-                } else {
-                    // Get all the resources.
-                    $resources_list = $this->getXenAPI()->getResources($category_id);
+
+                    // Use the value from the 'author' argument to set the variables.
+                    $conditions['user_id'] = $user->getID();
                 }
+
+                $resources_list = $this->getXenAPI()->getResources($conditions, $fetchOptions);
 
                 // Create an array for the resources.
                 $resources = array();
@@ -3349,21 +3365,12 @@ class XenAPI {
     /**
     * Returns a list of resources.
     */
-    public function getResources($category_id = NULL, $author = NULL) {
-        $resources_list = $this->getModels()->getModel('resource')->getResources();
+    public function getResources($conditions = array(), $fetchOptions = array()) {
+        $this->getModels()->checkModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
+        $resources_list = $this->getModels()->getModel('resource')->getResources($conditions, $fetchOptions);
         $resources = array();
         foreach ($resources_list as $resource) {
-            $temp_resource = new Resource($resource);
-            if ($category_id !== NULL && is_numeric($category_id) && $temp_resource->getCategoryID() != $category_id) {
-                // The category_id input is not NULL and the resource is not in the category, skip the resource.
-                continue;
-            } else if ($author != NULL 
-                && (((is_numeric($author) && $temp_resource->getAuthorUserID() != $author) 
-                    || strtolower($temp_resource->getAuthorUsername()) != strtolower($author)))) {
-                // The author input is not NULL and the resource is not owned by the author, skip the resource.
-                continue;
-            }
-            $resources[] = $temp_resource;
+            $resources[] = new Resource($resource);
         }
         return $resources;
     }
@@ -3371,8 +3378,9 @@ class XenAPI {
     /**
     * Returns the Resource class of the $resource parameter.
     */
-    public function getResource($resource) {
-        return new Resource($this->getModels()->getModel('resource')->getResourceById($resource));
+    public function getResource($resource, $fetchOptions = array()) {
+        $this->getModels()->checkModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
+        return new Resource($this->getModels()->getModel('resource')->getResourceById($resource, $fetchOptions));
     }
 
     /**
@@ -4333,6 +4341,7 @@ class Resource {
                     'category_id'      => $resource->getCategoryID(),
                     'version_id'       => $resource->getCurrentVersionID(),
                     'description_id'   => $resource->getDescriptionUpdateID(),
+                    'description'      => $resource->getDescription(),
                     'thread_id'        => $resource->getDiscussionThreadID(),
                     'external_url'     => $resource->getExternalURL(),
                     'price'            => $resource->getPrice(),
@@ -4431,6 +4440,13 @@ class Resource {
     */
     public function getDescriptionUpdateID() {
         return $this->data['description_update_id'];
+    }
+
+    /**
+    * Returns the current description of the resource.
+    */
+    public function getDescription() {
+        return $this->data['description'];
     }
 
     /**
