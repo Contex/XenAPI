@@ -108,6 +108,7 @@ class RestAPI {
         'getprofileposts'          => 'authenticated',
         'getresource'              => 'administrator',
         'getresources'             => 'administrator',
+        'getresourcecategories'    => 'administrator',
         'getstats'                 => 'public',
         'getthread'                => 'public',
         'getthreads'               => 'public',
@@ -2027,6 +2028,9 @@ class RestAPI {
                 *   - api.php?action=getResource&value=1&hash=USERNAME:HASH
                 *   - api.php?action=getResource&value=1&hash=API_KEY
                 */
+                /* 
+                * Check the resource addon is installed
+                */
                 if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
                     $this->throwError(16, 'resource');
                     break;
@@ -2065,20 +2069,23 @@ class RestAPI {
                 *   - api.php?action=getResources&author=1&hash=API_KEY
                 */
                 /* 
-                * Check if the request has the 'author' argument set, 
-                * if it doesn't it uses the default (all).
+                * Check the resource addon is installed
                 */
                 if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
                     $this->throwError(16, 'resource');
                     break;
                 }
+                /* 
+                * Check if the request has the 'author' argument set, 
+                * if it doesn't it uses the default (all).
+                */
                 if ($this->hasRequest('author')) {
                     if (!$this->getRequest('author')) {
                         // Throw error if the 'author' argument is set but empty.
                         $this->throwError(1, 'author');
                         break;
                     }
-                    // Use the value from the 'author' argument to get the alerts.
+                    // Use the value from the 'author' argument to get the resources.
                     $resources_list = $this->xenAPI->getResources($this->getRequest('author'));
                     if (count($resources_list) == 0) {
                        // Throw error if the 'author' is not the author of any resources.
@@ -2086,7 +2093,7 @@ class RestAPI {
                         break;
                     }
                 } else {
-                    // Use the default type to get the alerts.
+                    // Get all the resources.
                     $resources_list = $this->getXenAPI()->getResources();
                 }
 
@@ -2098,6 +2105,27 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse(array('count' => count($resources), 'resources' => $resources));
+            case 'getresourcecategories':
+                /**
+                * Returns a list of resource categories
+                *
+                * EXAMPLES: 
+                *   - api.php?action=getResourceCategories&hash=USERNAME:HASH
+                *   - api.php?action=getResourceCategories&hash=API_KEY
+                */
+                /* 
+                * Check the resource addon is installed
+                */
+                if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
+                    $this->throwError(16, 'resource');
+                    break;
+                }
+
+                // Grab the resource categories.
+                $resource_categories = $this->getXenAPI()->getResourceCategories();
+
+                // Send the response.
+                $this->sendResponse(array('count' => count($resource_categories), 'categories' => $resource_categories));
             case 'getstats':
                 /**
                 * Returns a summary of stats.
@@ -2604,7 +2632,7 @@ class XenAPI {
         $deps = new XenForo_Dependencies_Public();
         $deps->preLoadData();
 
-        // Disable XenForo's PHP 
+        // Disable XenForo's PHP error handler.
         XenForo_Application::disablePhpErrorHandler();
 
         // Enable error logging for PHP.
@@ -3322,6 +3350,14 @@ class XenAPI {
     */
     public function getResource($resource) {
         return new Resource($this->getModels()->getModel('resource')->getResourceById($resource));
+    }
+
+    /**
+    * Returns the list of resource categories.
+    */
+    public function getResourceCategories() {
+        $this->getModels()->checkModel('resource_category', XenForo_Model::create('XenResource_Model_Category'));
+        return $this->getModels()->getModel('resource_category')->getAllCategories();
     }
 
     /**
@@ -4735,5 +4771,4 @@ class User {
     public function getPermissionCache() {
         return $this->data['global_permission_cache'];
     }
-
 }
