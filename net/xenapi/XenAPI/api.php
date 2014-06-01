@@ -4844,7 +4844,6 @@ class User {
             $ddata = unserialize($record['data']);
             return $ddata['hash'] == $password;
         } else {
-            $record = $this->getAuthenticationRecord();
             return $this->models->getUserModel()->validateAuthentication($this->data['username'], $password); 
         }
     }
