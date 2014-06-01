@@ -1347,7 +1347,7 @@ class RestAPI {
                 }
 
                 // List of fields that are accepted to be edited.
-                $edit_fields = array('username', 'password', 'email', 'gender', 'custom_title', 'style_id', 'timezone', 'visible', 'dob_day', 'dob_month', 'dob_year', 'user_state');
+                $edit_fields = array('username', 'password', 'email', 'gender', 'custom_title', 'style_id', 'timezone', 'visible', 'dob_day', 'dob_month', 'dob_year', 'user_state', 'trophy_points');
 
                 // List of fields that the request should ignore.
                 $ignore_fields = array('hash', 'action', 'user');
