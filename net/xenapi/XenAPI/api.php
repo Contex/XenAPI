@@ -3374,9 +3374,21 @@ class XenAPI {
     */
     public function getResources($conditions = array(), $fetchOptions = array()) {
         $this->getModels()->checkModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
+        $this->getModels()->checkModel('resource_version', XenForo_Model::create('XenResource_Model_Version'));
+        $this->getModels()->checkModel('attachment', XenForo_Model::create('XenForo_Model_Attachment'));
         $resources_list = $this->getModels()->getModel('resource')->getResources($conditions, $fetchOptions);
         $resources = array();
-        foreach ($resources_list as $resource) {
+        foreach ($resources_list as &$resource) {
+            $resource_version = $this->getModels()->getModel('resource_version')->getVersionById(
+                $resource['current_version_id'], 
+                array('join' => XenResource_Model_Version::FETCH_FILE)
+            );
+            $resource['current_version_string'] = $resource_version['version_string'];
+            if ($resource['is_fileless'] === 0) {
+                $attachment_id = $resource_version['attachment_id'];
+                $attachment = $this->getModels()->getModel('attachment')->getAttachmentById($attachment_id);
+                $resource['current_file_hash'] = $attachment['file_hash'];
+            }
             $resources[] = new Resource($resource);
         }
         return $resources;
@@ -3387,7 +3399,20 @@ class XenAPI {
     */
     public function getResource($resource, $fetchOptions = array()) {
         $this->getModels()->checkModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
-        return new Resource($this->getModels()->getModel('resource')->getResourceById($resource, $fetchOptions));
+        $this->getModels()->checkModel('resource_version', XenForo_Model::create('XenResource_Model_Version'));
+        $this->getModels()->checkModel('attachment', XenForo_Model::create('XenForo_Model_Attachment'));
+        $resource = $this->getModels()->getModel('resource')->getResourceById($resource, $fetchOptions);
+        $resource_version = $this->getModels()->getModel('resource_version')->getVersionById(
+            $resource['current_version_id'], 
+            array('join' => XenResource_Model_Version::FETCH_FILE)
+        );
+        $resource['current_version_string'] = $resource_version['version_string'];
+        if ($resource['is_fileless'] === 0) {
+            $attachment_id = $resource_version['attachment_id'];
+            $attachment = $this->getModels()->getModel('attachment')->getAttachmentById($attachment_id);
+            $resource['current_file_hash'] = $attachment['file_hash'];
+        }
+        return new Resource($resource);
     }
 
     /**
@@ -3714,7 +3739,7 @@ class XenAPI {
                 ' . $sqlClauses['orderClause'] . '
             ', $limitOptions['limit'], $limitOptions['offset']
         ), 'post_id');
-    
+
         // Loop through the posts to unset some values that are not needed.
         foreach ($post_list as $key => &$post) {
             if ($user != NULL) {
@@ -4349,6 +4374,8 @@ class Resource {
                     'creation_date'    => $resource->getCreationDate(),
                     'category_id'      => $resource->getCategoryID(),
                     'version_id'       => $resource->getCurrentVersionID(),
+                    'version_string'   => $resource->getCurrentVersionString(),
+                    'file_hash'        => $resource->getCurrentFileHash(),
                     'description_id'   => $resource->getDescriptionUpdateID(),
                     'description'      => $resource->getDescription(),
                     'thread_id'        => $resource->getDiscussionThreadID(),
@@ -4442,6 +4469,20 @@ class Resource {
     */
     public function getCurrentVersionID() {
         return $this->data['current_version_id'];
+    }
+
+    /**
+    * Returns the current version string of the resource.
+    */
+    public function getCurrentVersionString() {
+        return $this->data['current_version_string'];
+    }
+
+    /**
+    * Returns the current file hash (MD5) of the resource.
+    */
+    public function getCurrentFileHash() {
+        return $this->data['current_file_hash'];
     }
 
     /**
