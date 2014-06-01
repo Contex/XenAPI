@@ -2368,7 +2368,7 @@ class RestAPI {
                             unset($data['is_banned']);
                         }
                     }
-                    if (!$this->getUser()->isModerator()) {
+                    if (!$this->getUser()->isModerator() && $this->getUser()->getID() != $user->getID()) {
                         // Unset variables if user is not a moderator.
                         if (isset($data['user_state'])) {
                             unset($data['user_state']);
