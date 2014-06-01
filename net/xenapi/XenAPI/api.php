@@ -2167,20 +2167,28 @@ class RestAPI {
                 /**
                 * Returns a summary of stats.
                 *
+                * NOTE: "include_deleted" will count the deleted posts/threads as well
+                *
                 * EXAMPLE:
                 *   - api.php?action=getStats
+                *   - api.php?action=getStats&include_deleted
                 */
                 $latest_user = $this->xenAPI->getLatestUser();
+                if (!$this->hasRequest('include_deleted')) {
+                    $include_deleted = TRUE;
+                } else {
+                    $include_deleted = FALSE;
+                }
                 $this->sendResponse(array(
-                    'threads'                => $this->xenAPI->getStatsItem('threads'),
-                    'posts'                  => $this->xenAPI->getStatsItem('posts'),
-                    'conversations'          => $this->xenAPI->getStatsItem('conversations'),
-                    'conversations_messages' => $this->xenAPI->getStatsItem('conversations_messages'),
-                    'members'                => $this->xenAPI->getStatsItem('users'),
+                    'threads'                => $this->xenAPI->getStatsItem('threads', $include_deleted),
+                    'posts'                  => $this->xenAPI->getStatsItem('posts', $include_deleted),
+                    'conversations'          => $this->xenAPI->getStatsItem('conversations', $include_deleted),
+                    'conversations_messages' => $this->xenAPI->getStatsItem('conversations_messages', $include_deleted),
+                    'members'                => $this->xenAPI->getStatsItem('users', $include_deleted),
                     'latest_member'          => array('user_id' => $latest_user->getID(), 'username' => $latest_user->getUsername()),
-                    'registrations_today'    => $this->xenAPI->getStatsItem('registrations_today'),
-                    'threads_today'          => $this->xenAPI->getStatsItem('threads_today'),
-                    'posts_today'            => $this->xenAPI->getStatsItem('posts_today'),
+                    'registrations_today'    => $this->xenAPI->getStatsItem('registrations_today', $include_deleted),
+                    'threads_today'          => $this->xenAPI->getStatsItem('threads_today', $include_deleted),
+                    'posts_today'            => $this->xenAPI->getStatsItem('posts_today', $include_deleted),
                     'users_online'           => $this->xenAPI->getUsersOnlineCount($this->getUser())
                 ));
                 break;
@@ -3433,7 +3441,7 @@ class XenAPI {
         return $this->getModels()->getModel('stats')->getStatsData(time() - 5000, time());
     }
 
-    public function getStatsItem($item) {
+    public function getStatsItem($item, $include_deleted = FALSE) {
         $this->getModels()->checkModel('database', XenForo_Application::get('db'));
         switch ($item) {
             case 'users':
@@ -3443,15 +3451,15 @@ class XenAPI {
             case 'conversations_messages':
                 return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_conversation_message');
             case 'posts':
-                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post');
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post' . ($include_deleted ? ' WHERE message_state != "deleted"' : ''));
             case 'threads':
-                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_thread');
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_thread' . ($include_deleted ? ' WHERE discussion_state != "deleted"' : ''));
             case 'registrations_today':
                 return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_user WHERE register_date > UNIX_TIMESTAMP(CURDATE())');
             case 'posts_today':
-                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post WHERE post_date > UNIX_TIMESTAMP(CURDATE()) AND position != 0');
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_post WHERE post_date > UNIX_TIMESTAMP(CURDATE()) AND position != 0' . ($include_deleted ? ' AND message_state != "deleted"' : ''));
             case 'threads_today':
-                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_thread WHERE post_date > UNIX_TIMESTAMP(CURDATE())');
+                return $this->getModels()->getModel('database')->fetchOne('SELECT COUNT(*) FROM xf_thread WHERE post_date > UNIX_TIMESTAMP(CURDATE())' . ($include_deleted ? ' AND discussion_state != "deleted"' : ''));
             default:
                 return NULL;
         }
