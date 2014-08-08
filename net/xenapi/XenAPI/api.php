@@ -2655,6 +2655,7 @@ class RestAPI {
                     break;
                 }
                 $order = 'asc';
+                $type = NULL;
                 if ($this->hasRequest('order')) {
                     // Request has order.
                     if (!$this->getRequest('order')) {
@@ -2663,9 +2664,19 @@ class RestAPI {
                         break;
                     }
                     // Set the language id of the registration.
-                    $uorder = $this->getRequest('order');
+                    $order = $this->getRequest('order');
+                } 
+                if ($this->hasRequest('type')) {
+                    // Request has type.
+                    if (!$this->getRequest('type')) {
+                        // Throw error if the 'type' argument is set but empty.
+                        $this->throwError(1, 'type');
+                        break;
+                    }
+                    // Set the language id of the registration.
+                    $type = $this->getRequest('type');
                 }
-                $this->sendResponse($this->getXenAPI()->search($this->getRequest('value'), $order));
+                $this->sendResponse($this->getXenAPI()->search($this->getRequest('value'), $order, $type));
                 break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
@@ -2842,12 +2853,15 @@ class XenAPI {
         return $conversation_reply;
     }
 
-    public function search($keywords, $order = 'asc') {
+    public function search($keywords, $order = 'asc', $type = NULL) {
         $keywords = XenForo_Helper_String::censorString($keywords, null, '');
         $this->getModels()->checkModel('search', XenForo_Model::create('XenForo_Model_Search'));
         $searcher = new XenForo_Search_Searcher($this->getModels()->getModel('search'));
         $results = $searcher->searchGeneral($keywords, array(), $order);
         foreach ($results as &$result) {
+            if ($type !== NULL && strtolower($result[0]) != strtolower($type)) {
+                unset($result);
+            }
             $result = array(
                 'type' => $result[0],
                 'data' => $result[1]
