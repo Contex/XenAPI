@@ -115,7 +115,8 @@ class RestAPI {
         'getthreads'               => 'public',
         'getuser'                  => 'authenticated', 
         'getusers'                 => 'public',
-        'register'                 => 'api_key'
+        'register'                 => 'api_key',
+        'search'                   => 'public'
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
@@ -2643,6 +2644,29 @@ class RestAPI {
                     $this->sendResponse($registration_results);
                 }
                 break;
+            case 'search':
+                if (!$this->hasRequest('value')) {
+                    // The 'value' argument has not been set, throw error.
+                    $this->throwError(3, 'value');
+                    break;
+                } else if (!$this->getRequest('value')) {
+                    // Throw error if the 'value' argument is set but empty.
+                    $this->throwError(1, 'value');
+                    break;
+                }
+                $order = 'asc';
+                if ($this->hasRequest('order')) {
+                    // Request has order.
+                    if (!$this->getRequest('order')) {
+                        // Throw error if the 'order' argument is set but empty.
+                        $this->throwError(1, 'order');
+                        break;
+                    }
+                    // Set the language id of the registration.
+                    $uorder = $this->getRequest('order');
+                }
+                $this->sendResponse($this->getXenAPI()->search($this->getRequest('value'), $order));
+                break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwError(11, $this->getAction());
@@ -2816,6 +2840,32 @@ class XenAPI {
         $this->getModels()->getModel('conversation')->markConversationAsRead($conversation['conversation_id'], $user->data['user_id'], XenForo_Application::$time, 0, FALSE);
 
         return $conversation_reply;
+    }
+
+    public function search($keywords, $order = 'asc') {
+        $keywords = XenForo_Helper_String::censorString($keywords, null, '');
+        $this->getModels()->checkModel('search', XenForo_Model::create('XenForo_Model_Search'));
+        $searcher = new XenForo_Search_Searcher($this->getModels()->getModel('search'));
+        $results = $searcher->searchGeneral($keywords, array(), $order);
+        foreach ($results as &$result) {
+            $result = array(
+                'type' => $result[0],
+                'data' => $result[1]
+            );
+            switch ($result['type']) {
+                case 'post':
+                    $result['data'] = $this->getPost($result['data']);
+                    break;
+                case 'thread':
+                    $result['data'] = $this->getThread($result['data']);
+                    break;
+                case 'resource_update':
+                    // TODO
+                    $result['data'] = array('resource_update_id' => $result['data']);
+                    break;
+            }
+        }
+        return array_values($results);
     }
 
     public function createPost($user, $post_data = array()) { 
