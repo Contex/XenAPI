@@ -23,10 +23,10 @@ $restAPI = new RestAPI('REPLACE_THIS_WITH_AN_API_KEY');
 # YOU REALLY KNOW WHAT ARE YOU DOING
 
 // Process the request
-if ($restAPI->getAPIKey() != NULL && $restAPI->getAPIKey() == 'REPLACE_THIS_WITH_AN_API_KEY') { 
+if ($restAPI->getAPIKey() !== NULL && $restAPI->isDefaultAPIKey()) { 
     // API is set but not changed from the default API key.
     $restAPI->throwError(17);
-} else if ($restAPI->getAPIKey() != NULL && !$restAPI->hasRequest('hash') && !$restAPI->isPublicAction()) {
+} else if ($restAPI->getAPIKey() !== NULL && !$restAPI->hasRequest('hash') && !$restAPI->isPublicAction()) {
     // Hash argument is required and was not found, throw error.
     $restAPI->throwError(3, 'hash');
 } else if (!$restAPI->getHash() && !$restAPI->isPublicAction()) {
@@ -57,6 +57,7 @@ $restAPI->processRequest();
 
 class RestAPI {
     const VERSION = '1.4.dev';
+    const DEFAULT_APIKEY = 'REPLACE_THIS_WITH_AN_API_KEY';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     /**
@@ -276,6 +277,10 @@ class RestAPI {
         return $this->xenAPI;
     }
 
+    public function isDefaultAPIKey() {
+        return $this->getAPIKey() == self::DEFAULT_APIKEY;
+    }
+
     /**
     * Returns the API key, returns FALSE if an API key was not set.
     */
@@ -436,9 +441,9 @@ class RestAPI {
     * Returns FALSE if the hash is not an userhash.
     */
     public function getUser() {
-        if (isset($this->user) && $this->user != NULL) {
+        if (isset($this->user) && $this->user !== NULL) {
             return $this->user;
-        } else if (isset($this->grab_as) && $this->grab_as != NULL) {
+        } else if (isset($this->grab_as) && $this->grab_as !== NULL) {
             return $this->grab_as;
         } else if (strpos($this->getHash(), ':') !== FALSE) {
             $array = explode(':', $this->getHash());
@@ -629,10 +634,10 @@ class RestAPI {
             }
             $error_string = $this->user_errors[$error];
         }
-        if ($extra != NULL) {
+        if ($extra !== NULL) {
             $error_string = str_replace('{ERROR}', $extra, $error_string);
         } 
-        if ($extra2 != NULL) {
+        if ($extra2 !== NULL) {
             $error_string = str_replace('{ERROR2}', $extra2, $error_string);
         }
         return array('id' => $error, 'message' => $error_string);
@@ -3029,14 +3034,14 @@ class XenAPI {
         } else {
             $delete_type = 'soft';
         }
-        if ($reason != NULL) {
+        if ($reason !== NULL) {
             $options = array('reason' => $reason);
         } else {
             $options = array();
         }
 
         $post = $this->getPost($post_id);
-        if ($user != NULL) {
+        if ($user !== NULL) {
             $fetchOptions = array('permissionCombinationId' => $user->data['permission_combination_id']);
             $thread = $this->getThread($post['thread_id'], $fetchOptions);
             $forum = $this->getForum($thread['node_id'], $fetchOptions);
@@ -3048,7 +3053,7 @@ class XenAPI {
 
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
 
-        if ($user != NULL && (!$this->canViewThread($user, $thread, $permissions) || !$this->getModels()->getModel('post')->canDeletePost($post, $thread, $forum, $delete_type, $null, $permissions, $user->getData()))) {
+        if ($user !== NULL && (!$this->canViewThread($user, $thread, $permissions) || !$this->getModels()->getModel('post')->canDeletePost($post, $thread, $forum, $delete_type, $null, $permissions, $user->getData()))) {
             // User does not have permission to delete this post.
             return array('error' => 14, 'errors' => 'The user does not have permissions to delete this post.');
         }
@@ -3469,7 +3474,7 @@ class XenAPI {
     * TODO
     */
     public function checkUserPermissions(&$user, array $fetchOptions = array()) {
-        if ($user != NULL) {
+        if ($user !== NULL) {
             $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
 
             if (!is_array($user) && !($user instanceof User)) {
@@ -3501,7 +3506,7 @@ class XenAPI {
     */
     public function getUsersOnlineCount($user = NULL) {
         $this->getModels()->checkModel('session', XenForo_Model::create('XenForo_Model_Session'));
-        if ($user != NULL) {
+        if ($user !== NULL) {
             // User parameter is not null, make sure to follow privacy of the users.
             $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
 
@@ -3588,7 +3593,7 @@ class XenAPI {
             }
 
             // Check if user is set.
-            if ($user != NULL) {
+            if ($user !== NULL) {
                 // Get the node.
                 $node = $this->getNode($node['node_id'], array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
                 $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
@@ -3695,7 +3700,7 @@ class XenAPI {
             $fetchOptions = array_merge($fetchOptions, array('join' => XenForo_Model_Post::FETCH_THREAD));
         }
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
-        if ($user != NULL) {
+        if ($user !== NULL) {
             // User is set, we need to include permissions.
             if (!isset($fetchOptions['join'])) {
                 // WE need to grab the thread to get the node permissions.
@@ -3751,7 +3756,7 @@ class XenAPI {
 
         // Loop through the posts to unset some values that are not needed.
         foreach ($post_list as $key => &$post) {
-            if ($user != NULL) {
+            if ($user !== NULL) {
                 // Check if the user has permissions to view the post.
                 $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
                 if (!$this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData())) {
@@ -3833,7 +3838,7 @@ class XenAPI {
     */
     public function getProfilePosts($conditions = array(), $fetchOptions = array('limit' => 10), $user = NULL) {
         $this->getModels()->checkModel('profile_post', XenForo_Model::create('XenForo_Model_ProfilePost'));
-        if ($user != NULL) {
+        if ($user !== NULL) {
             // User is set, we need to include permissions.
             $this->checkUserPermissions($user);
         }
@@ -3902,7 +3907,7 @@ class XenAPI {
             ', $limitOptions['limit'], $limitOptions['offset']
         ), 'profile_post_id');
 
-        if ($user != NULL) {
+        if ($user !== NULL) {
             // Loop through the profile posts to check permissions
             foreach ($profile_post_list as $key => $profile_post) {
                 // Check if the user has permissions to view the profile post.
@@ -3928,7 +3933,7 @@ class XenAPI {
         $this->checkUserPermissions($user);
 
         // Return if the user has permissions to view the profile post.
-        return $user != NULL && $this->getModels()->getModel('profile_post')->canViewProfilePost($profile_post, array(), $null, $user->getData());
+        return $user !== NULL && $this->getModels()->getModel('profile_post')->canViewProfilePost($profile_post, array(), $null, $user->getData());
     }
 
 
@@ -3977,14 +3982,14 @@ class XenAPI {
         } else {
             $content_limit = 1;
         }
-        if ($user != NULL) {
+        if ($user !== NULL) {
             $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
         } else {
             $thread_list = $this->getModels()->getModel('thread')->getThreads($conditions, $fetchOptions);
         }
         // Loop through the threads to check if the user has permissions to view the thread.
         foreach ($thread_list as $key => &$thread) {
-            if ($user != NULL) {
+            if ($user !== NULL) {
                 $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
                 if (!$this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData())) {
                     // User does not have permission to view this thread, unset it and continue the loop.
@@ -4195,7 +4200,7 @@ class Models {
     * Returns TRUE if the model exists, FALSE if not.
     */
     public function hasModel($model_name) {
-        return isset($this->models[$model_name]) && $this->models[$model_name] != NULL;
+        return isset($this->models[$model_name]) && $this->models[$model_name] !== NULL;
     }
 
     /**
@@ -4412,7 +4417,7 @@ class Resource {
     * Returns TRUE if the resource is valid, returns FALSE if not.
     */
     public function isValid() {
-        return $this->data != NULL && is_array($this->data) && isset($this->data['resource_id']) && $this->data['resource_id'] != NULL;
+        return $this->data !== NULL && is_array($this->data) && isset($this->data['resource_id']) && $this->data['resource_id'] !== NULL;
     }
 
     /**
@@ -4656,7 +4661,7 @@ class Addon {
     * Returns TRUE if the addon is installed, returns FALSE if not.
     */
     public function isInstalled() {
-        return $this->data != NULL && is_array($this->data) && isset($this->data['addon_id']) && $this->data['addon_id'] != NULL;
+        return $this->data !== NULL && is_array($this->data) && isset($this->data['addon_id']) && $this->data['addon_id'] !== NULL;
     }
 
     /**
