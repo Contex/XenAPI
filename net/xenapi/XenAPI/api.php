@@ -2854,13 +2854,17 @@ class XenAPI {
     }
 
     public function search($keywords, $order = 'asc', $type = NULL) {
-        $keywords = XenForo_Helper_String::censorString($keywords, null, '');
+        $keywords = strtolower(XenForo_Helper_String::censorString($keywords, null, ''));
         $this->getModels()->checkModel('search', XenForo_Model::create('XenForo_Model_Search'));
         $searcher = new XenForo_Search_Searcher($this->getModels()->getModel('search'));
-        $results = $searcher->searchGeneral($keywords, array(), $order);
-        foreach ($results as &$result) {
-            if ($type !== NULL && strtolower($result[0]) != strtolower($type)) {
-                unset($result);
+        $xenforo_results = $searcher->searchGeneral($keywords, array(), $order);
+        $results = array();
+        foreach ($xenforo_results as &$result) {
+            if ($type !== NULL) {
+                if (strtolower($result[0]) != strtolower($type) 
+                    && !(strtolower($result[0]) == 'thread' && strtolower($type) == 'thread_title')) {
+                    continue;
+                }
             }
             $result = array(
                 'type' => $result[0],
@@ -2872,14 +2876,18 @@ class XenAPI {
                     break;
                 case 'thread':
                     $result['data'] = $this->getThread($result['data']);
+                    if ($type !== NULL && strtolower($type) == 'thread_title' && $titleFound = $result['data']['title'] != $keywords) {
+                        continue 2;
+                    }
                     break;
                 case 'resource_update':
                     // TODO
                     $result['data'] = array('resource_update_id' => $result['data']);
                     break;
             }
+            $results[] = $result;
         }
-        return array_values($results);
+        return $results;
     }
 
     public function createPost($user, $post_data = array()) { 
