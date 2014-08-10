@@ -115,6 +115,7 @@ class RestAPI {
         'getthreads'               => 'public',
         'getuser'                  => 'authenticated', 
         'getusers'                 => 'public',
+        'login'                    => 'public', 
         'register'                 => 'api_key',
         'search'                   => 'public'
     );
@@ -2448,6 +2449,84 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($results);
                 break;
+
+            case 'login':
+                /**
+                * Logins the user.
+                *
+                * EXAMPLE:
+                *   - api.php?action=login&username=USERNAME&password=PASSWORD
+                */
+                if (!$this->hasRequest('username')) {
+                    // The 'username' argument has not been set, throw error.
+                    $this->throwError(3, 'username');
+                    break;
+                } else if (!$this->getRequest('username')) {
+                    // Throw error if the 'username' argument is set but empty.
+                    $this->throwError(1, 'username');
+                    break;
+                } else if (!$this->hasRequest('password')) {
+                    // The 'password' argument has not been set, throw error.
+                    $this->throwError(3, 'password');
+                    break;
+                } else if (!$this->getRequest('password')) {
+                    // Throw error if the 'password' argument is set but empty.
+                    $this->throwError(1, 'password');
+                    break;
+                } else if (!$this->hasRequest('ip_address')) {
+                    // The 'ip_address' argument has not been set, throw error.
+                    $this->throwError(3, 'ip_address');
+                    break;
+                } else if (!$this->getRequest('ip_address')) {
+                    // Throw error if the 'ip_address' argument is set but empty.
+                    $this->throwError(1, 'ip_address');
+                    break;
+                }
+
+                // Get the user object.
+                $user = $this->xenAPI->getUser($this->getRequest('username'));
+                if (!$user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwError(4, 'user', $this->getRequest('username'));
+                } else {
+                    // Requested user was registered, check authentication.
+                    if ($user->validateAuthentication($this->getRequest('password'))) {
+                        // Authentication was valid, grab the user's authentication record.
+                        $record = $user->getAuthenticationRecord();
+                        $ddata = unserialize($record['data']);
+
+                        // Start session and saves the session to the database
+                        $session = $this->getXenAPI()->login(
+                        	$user->getID(), 
+                        	$user->getUsername(), 
+                        	XenForo_Helper_Ip::convertIpStringToBinary($this->getRequest('ip_address'))
+                       );
+
+                        $cookie_domain = XenForo_Application::get('config')->cookie->domain;
+
+                        // Check if cookie domain is empty, grab board url and use its domain if it is empty
+                        if (empty($cookie_domain)) {
+                        	$url = XenForo_Application::getOptions()->boardUrl;
+                        	$parse = parse_url($url);
+                        	$cookie_domain = $parse['host'];
+                        }
+
+                        // Return data required for creating cookie
+                        $this->sendResponse(array(
+                        	'hash'             => base64_encode($ddata['hash']),
+                        	'cookie_name'       => XenForo_Application::get('config')->cookie->prefix . 'session',
+                        	'cookie_id'         => $session->getSessionId(),
+                        	'cookie_path'       => XenForo_Application::get('config')->cookie->path,
+                        	'cookie_domain'     => $cookie_domain,
+                        	'cookie_expiration' => 0,
+                        	'cookie_secure'     => XenForo_Application::$secure
+                        ));
+                    } else {
+                        // The username or password was wrong, throw error.
+                        $this->throwError(5, 'Invalid username or password!');
+                    }
+                }
+                break;
             case 'register':
                 /**
                 * Registers a user.
@@ -2813,6 +2892,16 @@ class XenAPI {
         $this->getModels()->getModel('conversation')->markConversationAsRead($conversation['conversation_id'], $user->data['user_id'], XenForo_Application::$time);
 
         return $conversation;
+    }
+
+    public function login($user_id, $username, $ip_address) {
+    	$session = XenForo_Session::startPublicSession();
+        $session->set('user_id', $user_id);
+        $session->set('username', $username);
+        $session->set('ip', XenForo_Helper_Ip::convertIpStringToBinary($ip_address));
+        //$session->set('userAgent', $user_agent);
+        $session->saveSessionToSource($session->getSessionId(), false);
+        return $session;
     }
 
     public function createConversationReply($user, $conversation_reply_data = array()) { 
