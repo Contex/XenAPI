@@ -3848,6 +3848,12 @@ class XenAPI {
             // Unset the thread values.
             Post::stripThreadValues($post);
         }
+
+        // Add HTML as well
+        $formatter = XenForo_BbCode_Formatter_Base::create();
+        $parser = new XenForo_BbCode_Parser($formatter);
+        $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
+
         $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
         return $post;
     }
