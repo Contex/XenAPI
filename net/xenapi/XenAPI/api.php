@@ -4296,7 +4296,11 @@ class XenAPI {
     public function getUserUpgrades($user = NULL) {
         $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
         if ($user !== NULL) {
-            return $this->getModels()->getModel('user_upgrade')->getActiveUserUpgradeRecordsForUser($user->getID());
+            $user_upgrades = $this->getModels()->getModel('user_upgrade')->getActiveUserUpgradeRecordsForUser($user->getID());
+            foreach ($user_upgrades as &$user_upgrade) {
+                $user_upgrade['extra'] = unserialize($user_upgrade['extra']);
+            }
+            return $user_upgrades;
         }
         return $this->getModels()->getModel('user_upgrade')->getAllUserUpgrades();
     }
