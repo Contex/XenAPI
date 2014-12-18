@@ -115,6 +115,7 @@ class RestAPI {
         'getthreads'               => 'public',
         'getuser'                  => 'authenticated', 
         'getusers'                 => 'public',
+        'getuserupgrades'          => 'api_key',
         'login'                    => 'public', 
         'register'                 => 'api_key',
         'search'                   => 'public'
@@ -2449,7 +2450,15 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($results);
                 break;
-
+            case 'getuserupgrades': 
+                /**
+                * TODO
+                * 
+                * EXAMPLES: 
+                */
+                // Send the response.
+                $this->sendResponse($this->getXenAPI()->getUserUpgrades());
+                break;
             case 'login':
                 /**
                 * Logins the user.
@@ -3944,7 +3953,7 @@ class XenAPI {
             $formatter = XenForo_BbCode_Formatter_Base::create();
             $parser = new XenForo_BbCode_Parser($formatter);
             $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
-            
+
             $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
         }
         return array_values($post_list);
@@ -4232,6 +4241,11 @@ class XenAPI {
             // $input is an username, return the user of the username.
             return new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
         }
+    }
+
+    public function getUserUpgrades() {
+        $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
+        return $this->getModels()->getModel('user_upgrade')->getAllUserUpgrades();
     }
 
     /**
