@@ -2398,6 +2398,9 @@ class RestAPI {
                         if (isset($data['email'])) {
                             unset($data['email']);
                         }
+                        if (isset($data['custom_fields'])) {
+                            unset($data['custom_fields']);
+                        }
                     } 
                     if ($this->getUser()->getID() != $user->getID()) {
                         // Unset variables if user does not equal the requested user by the 'value' argument.
@@ -3732,6 +3735,9 @@ class XenAPI {
                 $attachment = $this->getModels()->getModel('attachment')->getAttachmentById($attachment_id);
                 $resource['current_file_hash'] = $attachment['file_hash'];
             }
+            if ($this->hasAddon('Waindigo_CustomFields') && $this->hasModel('Waindigo_CustomFields_Model_ThreadField')) {
+                $resource['custom_resource_fields'] = $resource['custom_resource_fields'] == FALSE ? NULL : unserialize($resource['custom_resource_fields']);
+            }
             $resources[] = new Resource($resource);
         }
         return $resources;
@@ -3754,6 +3760,9 @@ class XenAPI {
             $attachment_id = $resource_version['attachment_id'];
             $attachment = $this->getModels()->getModel('attachment')->getAttachmentById($attachment_id);
             $resource['current_file_hash'] = $attachment['file_hash'];
+        }
+        if ($this->hasAddon('Waindigo_CustomFields') && $this->hasModel('Waindigo_CustomFields_Model_ThreadField')) {
+            $resource['custom_resource_fields'] = $resource['custom_resource_fields'] == FALSE ? NULL : unserialize($resource['custom_resource_fields']);
         }
         return new Resource($resource);
     }
@@ -4294,6 +4303,10 @@ class XenAPI {
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
         $thread = $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetchOptions);
 
+        if ($this->hasAddon('Waindigo_CustomFields') && $this->hasModel('Waindigo_CustomFields_Model_ThreadField')) {
+            $thread['custom_fields'] = $thread['custom_fields'] == FALSE ? NULL : unserialize($thread['custom_fields']);
+        }
+
         if (!$thread) {
             $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
             return $thread;
@@ -4347,6 +4360,9 @@ class XenAPI {
                 $thread['content'] = array('count' => count($posts), 'content' => $posts);
                 unset($posts);
             }
+            if ($this->hasAddon('Waindigo_CustomFields') && $this->hasModel('Waindigo_CustomFields_Model_ThreadField')) {
+                $thread['custom_fields'] = $thread['custom_fields'] == FALSE ? NULL : unserialize($thread['custom_fields']);
+            }
             $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
         }
         return array_values($thread_list);
@@ -4389,16 +4405,20 @@ class XenAPI {
             $user = new User($this->models, $this->models->getUserModel()->getUserById($input, $fetchOptions));
             if (!$user->isRegistered()) {
                 // The user ID was not found, grabbing the user by the username instead.
-                return new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
+                $user = new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
             }
-            return $user;
         } else if ($this->models->getUserModel()->couldBeEmail($input)) {
             // $input is an e-mail, return the user of the e-mail.
-            return new User($this->models, $this->models->getUserModel()->getUserByEmail($input, $fetchOptions));
+            $user = new User($this->models, $this->models->getUserModel()->getUserByEmail($input, $fetchOptions));
         } else {
             // $input is an username, return the user of the username.
-            return new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
+            $user = new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
         }
+        if ($user->isRegistered()) {
+            $this->getModels()->checkModel('user_field', XenForo_Model::create('XenForo_Model_UserField'));
+            $user->data['custom_fields'] = $this->getModels()->getModel('user_field')->getUserFieldValues($user->getID());
+        }
+        return $user;
     }
 
     public function getUserUpgrade($upgrade_id) {
@@ -4776,30 +4796,32 @@ class Resource {
     * Returns an array with that conists of limited data.
     */
     public static function getLimitedData($resource) {
-       return array('id'               => $resource->getID(),
-                    'title'            => $resource->getTitle(),
-                    'author_id'        => $resource->getAuthorUserID(),
-                    'author_username'  => $resource->getAuthorUsername(),
-                    'state'            => $resource->getState(),
-                    'creation_date'    => $resource->getCreationDate(),
-                    'category_id'      => $resource->getCategoryID(),
-                    'version_id'       => $resource->getCurrentVersionID(),
-                    'version_string'   => $resource->getCurrentVersionString(),
-                    'file_hash'        => $resource->getCurrentFileHash(),
-                    'description_id'   => $resource->getDescriptionUpdateID(),
-                    'description'      => $resource->getDescription(),
-                    'thread_id'        => $resource->getDiscussionThreadID(),
-                    'external_url'     => $resource->getExternalURL(),
-                    'price'            => $resource->getPrice(),
-                    'currency'         => $resource->getCurrency(),
-                    'times_downloaded' => $resource->getTimesDownloaded(),
-                    'times_rated'      => $resource->getTimesRated(),
-                    'rating_sum'       => $resource->getRatingSum(),
-                    'rating_avg'       => $resource->getAverageRating(),
-                    'rating_weighted'  => $resource->getWeightedRating(),
-                    'times_updated'    => $resource->getTimesUpdated(),
-                    'times_reviewed'   => $resource->getTimesReviewed(),
-                    'last_update'      => $resource->getLastUpdateDate());
+        return array('id'               => $resource->getID(),
+                     'title'            => $resource->getTitle(),
+                     'author_id'        => $resource->getAuthorUserID(),
+                     'author_username'  => $resource->getAuthorUsername(),
+                     'state'            => $resource->getState(),
+                     'creation_date'    => $resource->getCreationDate(),
+                     'category_id'      => $resource->getCategoryID(),
+                     'version_id'       => $resource->getCurrentVersionID(),
+                     'version_string'   => $resource->getCurrentVersionString(),
+                     'file_hash'        => $resource->getCurrentFileHash(),
+                     'description_id'   => $resource->getDescriptionUpdateID(),
+                     'description'      => $resource->getDescription(),
+                     'thread_id'        => $resource->getDiscussionThreadID(),
+                     'external_url'     => $resource->getExternalURL(),
+                     'price'            => $resource->getPrice(),
+                     'currency'         => $resource->getCurrency(),
+                     'times_downloaded' => $resource->getTimesDownloaded(),
+                     'times_rated'      => $resource->getTimesRated(),
+                     'rating_sum'       => $resource->getRatingSum(),
+                     'rating_avg'       => $resource->getAverageRating(),
+                     'rating_weighted'  => $resource->getWeightedRating(),
+                     'times_updated'    => $resource->getTimesUpdated(),
+                     'times_reviewed'   => $resource->getTimesReviewed(),
+                     'last_update'      => $resource->getLastUpdateDate(),
+                     'custom_fields'    => $resource->getCustomFields()
+        );
     }
 
     /**
@@ -4814,6 +4836,10 @@ class Resource {
     */
     public function isValid() {
         return $this->data !== NULL && is_array($this->data) && isset($this->data['resource_id']) && $this->data['resource_id'] !== NULL;
+    }
+
+    public function getCustomFields() {
+        return array_key_exists('custom_resource_fields', $this->data) ? $this->data['custom_resource_fields'] : NULL;
     }
 
     /**
