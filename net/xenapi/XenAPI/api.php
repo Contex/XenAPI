@@ -452,7 +452,7 @@ class RestAPI {
             $this->user = $this->xenAPI->getUser($array[0]);
             return $this->user;
         }    
-        return FALSE;
+        return NULL;
     }
 
     /**
@@ -3939,6 +3939,12 @@ class XenAPI {
                 // Unset some not needed thread values.
                 Post::stripThreadValues($post_list[$key]);
             }
+
+            // Add HTML as well
+            $formatter = XenForo_BbCode_Formatter_Base::create();
+            $parser = new XenForo_BbCode_Parser($formatter);
+            $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
+            
             $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
         }
         return array_values($post_list);
