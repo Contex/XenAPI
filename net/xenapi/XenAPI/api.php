@@ -2530,7 +2530,7 @@ class RestAPI {
                 }
 
                 $user_upgrades = $this->getXenAPI()->getUserUpgrades($user);
-                
+
                 if (!$user_upgrades && $this->hasRequest('user')) {
                     $this->throwError(4, 'user upgrades', $this->getRequest('user'));
                 }
@@ -2979,10 +2979,8 @@ class XenAPI {
         $this->getModels()->setAvatarModel(XenForo_Model::create('XenForo_Model_Avatar'));
         $this->getModels()->setModel('addon', XenForo_Model::create('XenForo_Model_AddOn'));
         $this->getModels()->setModel('database', XenForo_Application::get('db'));
-        try {
+        if ($this->hasAddon('XenResource') && $this->hasModel('XenResource_Model_Resource')) {
             $this->getModels()->setModel('resource', XenForo_Model::create('XenResource_Model_Resource'));
-        } catch (Exception $ignore) {
-            // The resource model is missing, ignore the exceiption.
         }
     }
 
@@ -4279,8 +4277,6 @@ class XenAPI {
         return $user !== NULL && $this->getModels()->getModel('profile_post')->canViewProfilePost($profile_post, array(), $null, $user->getData());
     }
 
-
-
     /**
     * Returns the Thread array of the $thread_id parameter.
     */
@@ -4297,6 +4293,7 @@ class XenAPI {
         }
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
         $thread = $this->getModels()->getModel('thread')->getThreadById($thread_id, $fetchOptions);
+
         if (!$thread) {
             $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
             return $thread;
@@ -4438,6 +4435,26 @@ class XenAPI {
     public function downgradeUserUpgrade($record) {
         $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
         return $this->getModels()->getModel('user_upgrade')->downgradeUserUpgrade($record);
+    }
+
+    public function hasModel($model) {
+        if (XenForo_Application::autoload($model)) {
+            $model = @XenForo_Model::create($model);
+            return is_a($model, 'XenForo_Model');
+        }
+        return FALSE;
+    }
+
+    public function hasAddon($addon_id) {
+        $has = FALSE;
+        $addons = $this->getAddons();
+        foreach ($addons as $addon) {
+            if (strtolower($addon->getID()) == strtolower($addon_id)) {
+                $has = TRUE;
+                break;
+            }
+        }
+        return $has;
     }
 
     /**
