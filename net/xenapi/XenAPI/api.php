@@ -115,6 +115,7 @@ class RestAPI {
         'getthreads'               => 'public',
         'getuser'                  => 'authenticated', 
         'getusers'                 => 'public',
+        'getuserupgrade'           => 'api_key',
         'getuserupgrades'          => 'api_key',
         'login'                    => 'public', 
         'register'                 => 'api_key',
@@ -2450,6 +2451,31 @@ class RestAPI {
                 // Send the response.
                 $this->sendResponse($results);
                 break;
+            case 'getuserupgrade': 
+                /**
+                * TODO
+                * 
+                * EXAMPLES: 
+                */
+                if (!$this->hasRequest('id')) {
+                    // The 'id' argument has not been set, throw error.
+                    $this->throwError(3, 'id');
+                    break;
+                } else if (!$this->getRequest('id')) {
+                    // Throw error if the 'id' argument is set but empty.
+                    $this->throwError(1, 'id');
+                    break;
+                }
+
+                $user_upgrade = $this->getXenAPI()->getUserUpgrade($this->getRequest('id'));
+
+                if (!$user_upgrade) {
+                    $this->throwError(4, 'user upgrade', $this->getRequest('id'));
+                    break;
+                }
+
+                // Send the response.
+                $this->sendResponse($user_upgrade);
             case 'getuserupgrades': 
                 /**
                 * TODO
@@ -4241,6 +4267,11 @@ class XenAPI {
             // $input is an username, return the user of the username.
             return new User($this->models, $this->models->getUserModel()->getUserByName($input, $fetchOptions));
         }
+    }
+
+    public function getUserUpgrade($upgrade_id) {
+        $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
+        return $this->getModels()->getModel('user_upgrade')->getUserUpgradeById($upgrade_id);
     }
 
     public function getUserUpgrades() {
