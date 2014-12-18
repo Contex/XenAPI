@@ -93,7 +93,7 @@ class RestAPI {
         'createthread'             => 'authenticated',
         'deletepost'               => 'authenticated',
         'edituser'                 => 'api_key',
-        'getactions'               => 'public', 
+        'getactions'               => 'public',
         'getaddon'                 => 'administrator',
         'getaddons'                => 'administrator',
         'getalerts'                => 'private', 
@@ -2482,9 +2482,28 @@ class RestAPI {
                 * 
                 * EXAMPLES: 
                 */
+                $user = NULL;
+
+                if ($this->hasRequest('user')) {
+                    if (!$this->getRequest('user')) {
+                        // Throw error if the 'user' argument is set but empty.
+                        $this->throwError(1, 'user');
+                    }
+                    $user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                    if (!$user->isRegistered()) {
+                        // Requested user was not registered, throw error.
+                        $this->throwError(4, 'user', $this->getRequest('user'));
+                    }
+                }
+
+                $user_upgrades = $this->getXenAPI()->getUserUpgrades($user);
+
+                if (!$user_upgrades && $this->hasRequest('user')) {
+                    $this->throwError(4, 'user upgrades', $this->getRequest('user'));
+                }
+
                 // Send the response.
-                $this->sendResponse($this->getXenAPI()->getUserUpgrades());
-                break;
+                $this->sendResponse($user_upgrades);
             case 'login':
                 /**
                 * Logins the user.
@@ -4274,8 +4293,11 @@ class XenAPI {
         return $this->getModels()->getModel('user_upgrade')->getUserUpgradeById($upgrade_id);
     }
 
-    public function getUserUpgrades() {
+    public function getUserUpgrades($user = NULL) {
         $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
+        if ($user !== NULL) {
+            return $this->getModels()->getModel('user_upgrade')->getActiveUserUpgradeRecordsForUser($user->getID());
+        }
         return $this->getModels()->getModel('user_upgrade')->getAllUserUpgrades();
     }
 
