@@ -119,7 +119,8 @@ class RestAPI {
         'getuserupgrades'          => 'api_key',
         'login'                    => 'public', 
         'register'                 => 'api_key',
-        'search'                   => 'public'
+        'search'                   => 'public',
+        'upgradeuser'              => 'api_key'
     );
     
     // Array of actions that are user specific and require an username, ID or email for the 'value' parameter.
@@ -2811,6 +2812,61 @@ class RestAPI {
                 }
                 $this->sendResponse($this->getXenAPI()->search($this->getRequest('value'), $order, $type));
                 break;
+            case 'upgradeuser':
+                if (!$this->hasRequest('user')) {
+                    // The 'user' argument has not been set, throw error.
+                    $this->throwError(3, 'user');
+                } else if (!$this->getRequest('user')) {
+                    // Throw error if the 'user' argument is set but empty.
+                    $this->throwError(1, 'user');
+                }
+
+                $user = $this->getXenAPI()->getUser($this->getRequest('user'));
+                if (!$user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwError(4, 'user', $this->getRequest('user'));
+                }
+
+                if (!$this->hasRequest('id')) {
+                    // The 'id' argument has not been set, throw error.
+                    $this->throwError(3, 'id');
+                } else if (!$this->getRequest('id')) {
+                    // Throw error if the 'id' argument is set but empty.
+                    $this->throwError(1, 'id');
+                }
+
+                $upgrade = $this->getXenAPI()->getUserUpgrade($this->getRequest('id'));
+
+                if (!$upgrade) {
+                    $this->throwError(4, 'user upgrade', $this->getRequest('id'));
+                }
+
+                $end_date = NULL;
+                if ($this->hasRequest('end_date')) {
+                    // Request has end_date.
+                    if (!$this->getRequest('end_date')) {
+                        // Throw error if the 'end_date' argument is set but empty.
+                        $this->throwError(1, 'end_date');
+                    }
+                    // Set the language id of the registration.
+                    $end_date = $this->getRequest('end_date');
+                    if (!(((string) (int) $this->getRequest('end_date') === $this->getRequest('end_date')) 
+                        && ($this->getRequest('end_date') <= PHP_INT_MAX)
+                        && ($this->getRequest('end_date') >= ~PHP_INT_MAX))) {
+                        $this->throwError(6, $this->getRequest('end_date'), 'unix timestamp');
+                    }
+                }
+
+                $record_id = $this->getXenAPI()->upgradeUser($user, $upgrade, TRUE, $end_date);
+                $record = $this->getXenAPI()->getUserUpgradeRecord($record_id);
+                $return = array();
+                if (is_int($record_id)) {
+                    $return['result'] = 'exists';
+                } else {
+                    $return['result'] = 'new';
+                }
+                $return['record'] = $record;
+                $this->sendResponse($return);
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwError(11, $this->getAction());
@@ -4303,6 +4359,18 @@ class XenAPI {
             return $user_upgrades;
         }
         return $this->getModels()->getModel('user_upgrade')->getAllUserUpgrades();
+    }
+
+    public function getUserUpgradeRecord($record_id) {
+        $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
+        $upgrade_record = $this->getModels()->getModel('user_upgrade')->getActiveUserUpgradeRecordById($record_id);
+        $upgrade_record['extra'] = unserialize($upgrade_record['extra']);
+        return $upgrade_record;
+    }
+
+    public function upgradeUser($user, array $upgrade, $allow_insert_unpurchasable = FALSE, $end_date = NULL) {
+        $this->getModels()->checkModel('user_upgrade', XenForo_Model::create('XenForo_Model_UserUpgrade'));
+        return $this->getModels()->getModel('user_upgrade')->upgradeUser($user->getID(), $upgrade, $allow_insert_unpurchasable, $end_date);
     }
 
     /**
