@@ -61,6 +61,7 @@ class RestAPI {
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
     const THREAD_ERROR = 0x203;
+    const POST_ERROR = 0x204;
     /**
     * Contains all the actions in an array, each action is 'action' => 'permission_name'
     * 'action' is the name of the action in lowercase.
@@ -94,6 +95,7 @@ class RestAPI {
         'createthread'             => 'authenticated',
         'deletepost'               => 'authenticated',
         'downgradeuser'            => 'api_key',
+        'editpost'                 => 'authenticated',
         'editthread'               => 'authenticated',
         'edituser'                 => 'api_key',
         'getactions'               => 'public',
@@ -655,11 +657,13 @@ class RestAPI {
     * Throw the error message.
     */
     public function throwError($error, $extra = NULL, $extra2 = NULL) {
-        if ($error == self::USER_ERROR || $error == self::THREAD_ERROR) {
+        if ($error == self::USER_ERROR || $error == self::THREAD_ERROR || $error == self::POST_ERROR) {
         	if ($error == self::USER_ERROR) {
         		$error_key = 'user';
         	} else if ($error == self::THREAD_ERROR) {
         		$error_key = 'thread';
+        	} else if ($error == self::POST_ERROR) {
+        		$error_key = 'post';
         	}
             if ($extra2 == NULL) {
                 $extra2 = 'performing a ' . $error_key . ' action';
@@ -685,7 +689,7 @@ class RestAPI {
             $error_response = array('error' => $error['id'], 'message' => $error['message']);
         }
         // Throw a 400 error.
-        header('HTTP/ 400 API error');
+        header('HTTP/1.1 400 API error', TRUE, 400);
 
         // Send error.
         $this->sendResponse($error_response);
@@ -1228,6 +1232,111 @@ class RestAPI {
                 $delete_results = $this->xenAPI->deletePost($this->getRequest('post_id'), $reason, $this->hasRequest('hard_delete'), $this->getUser());
 
                 $this->handleUserError($delete_results, 'post_deletion_error', 'deleting post');
+            case 'editpost':
+            	if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                    // The 'grab_as' argument has not been set, throw error.
+                    $this->throwError(3, 'grab_as');
+                } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
+                    // Throw error if the 'grab_as' argument is set but empty.
+                    $this->throwError(1, 'grab_as');
+                }
+
+                if (!$this->hasRequest('post_id')) {
+                    // The 'post_id' argument has not been set, throw error.
+                    $this->throwError(3, 'post_id');
+                    break;
+                } else if (!$this->getRequest('post_id')) {
+                    // Throw error if the 'post_id' argument is set but empty.
+                    $this->throwError(1, 'post_id');
+                    break;
+                }
+
+                $post = $this->getXenAPI()->getPost($this->getRequest('post_id'), array(), $this->getUser());
+                if ($post === NULL) {
+                     // Could not find the post, throw error.
+                    $this->throwError(19, 'post', $this->getRequest('post_id'));
+                } else if (!$this->hasAPIKey() && !$this->getXenAPI()->canViewPost($this->getUser(), $post)) {
+                    if (isset($this->grab_as)) {
+                        // Post was found but the 'grab_as' user is not permitted to view the post.
+                        $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this post');
+                    } else { 
+                        // Post was found but the user is not permitted to view the post.
+                        $this->throwError(20, 'You do', 'this post');
+                    }
+                } else if ($this->hasAPIKey() && isset($this->grab_as) && !$this->getXenAPI()->canViewPost($this->getUser(), $post)) {
+                    // Post was found but the 'grab_as' user is not permitted to view the thread.
+                    $this->throwError(20, $this->getUser()->getUsername() . ' does', 'this post');
+                }
+
+                // List of fields that are accepted to be edited.
+                $edit_fields = array('thread_id', 'message');
+
+                // List of fields that the request should ignore.
+                $ignore_fields = array('hash', 'action', 'grab_as');
+
+                // Let's check which fields are set.
+                foreach ($this->data as $data_key => $data_item) {
+                    if (!in_array($data_key, $ignore_fields) && in_array($data_key, $edit_fields) && $this->checkRequestParameter($data_key, FALSE)) {
+                        $edit_data[$data_key] = $data_item;
+                    }
+                }
+
+                if (count($edit_data) == 0) {
+                    // There are no fields set, throw error.
+                    $this->throwError(8, $edit_fields);
+                } else if (array_key_exists('thread_id', $edit_data)) {
+                	$thread = $this->getXenAPI()->getThread($edit_data['thread_id'], array(), $this->getUser());
+	                if ($thread == NULL) {
+	                     // Could not find the thread, throw error.
+	                    $this->throwError(19, 'thread', $edit_data['thread_id']);
+	                }
+                }
+               
+                // Get edit results.
+                $edit_results = $this->getXenAPI()->editPost($post, $this->getUser(), $edit_data);
+
+            	if (empty($edit_results['error'])) {
+                    // Edit was successful, return results.
+                    $this->sendResponse($edit_results);
+            	} else {
+                    // The registration failed, process errors.
+                    if (is_array($edit_results['errors'])) {
+                        // The error message was an array, loop through the messages.
+                        $error_keys = array();
+                        foreach ($edit_results['errors'] as $error_field => $error) {
+                            if (!($error instanceof XenForo_Phrase)) {
+                                $edit_error = array(
+                                    'error_id' => 1,
+                                    'error_key' => 'field_not_recognised', 
+                                    'error_field' => $error_field, 
+                                    'error_phrase' => $error
+                                );
+                        		// Throw error message.
+                                $this->throwError(self::POST_ERROR, $edit_error, 'editing a post');
+
+                            }
+
+                            // Let's init the edit error array.
+                            $edit_error = array(
+                                'error_id' => $this->getUserErrorID($error->getPhraseName()),
+                                'error_key' => $error->getPhraseName(), 
+                                'error_field' => $error_field, 
+                                'error_phrase' => $error->render()
+                            );
+
+                        	// Throw error message.
+                            $this->throwError(self::POST_ERROR, $edit_error, 'editing a post');
+                        }
+                    } else {
+                        $edit_error = array(
+                            'error_id' => $edit_results['error'],
+                            'error_key' => 'general_post_edit_error', 
+                            'error_phrase' => $edit_results['errors']
+                        );
+                        // Throw error message.
+                        $this->throwError(self::POST_ERROR, $edit_error, 'editing a post');
+                    }
+                }
             case 'editthread':
             	if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
                     // The 'grab_as' argument has not been set, throw error.
@@ -3511,6 +3620,74 @@ class XenAPI {
         }
 
         return $post;
+    }
+
+    public function editPost($post, $user, $edit_data = array()) {
+    	unset($post['absolute_url']);
+    	unset($post['message_html']);
+    	if (!$user) {
+            return array('error' => 3, 'errors' => 'The user array key was not set.');
+        }
+        if (!$user->isRegistered()) {
+            return array('error' => 4, 'errors' => 'User is not registered.');
+        }
+
+        $fetchOptions = array('permissionCombinationId' => $user->data['permission_combination_id']);
+
+        $thread = $this->getThread($post['thread_id']);
+        $forum = $this->getForum($thread['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+        $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
+
+        if (!$this->canViewThread($user, $thread, $permissions) || !$this->canReplyToThread($user, $thread, $forum, $permissions)) {
+            // User does not have permission to post in this thread.
+            return array('error' => 14, 'errors' => 'The user does not have permissions to post in this thread.');
+        }
+
+        if (array_key_exists('message', $edit_data)) {
+	        $edit_data['message'] = XenForo_Helper_String::autoLinkBbCode($edit_data['message']);
+	    }
+
+        // Init the diff array.
+        $diff_array = array();
+
+        // Create the data writer object for registrations, and set the defaults.
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_DiscussionMessage_Post');
+
+        // Set the existing data of the user before we submit the data.
+        $writer->setExistingData($post['post_id']);
+
+		// Bulkset the edited data.
+		$writer->bulkSet($edit_data);
+
+    	// Pre save the data.
+        $writer->preSave();
+
+        if ($writer->hasErrors()) {
+            // The edit failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+        // Save the user to the database.
+        $writer->save();
+         
+        // Get the user data.
+        $post_data = $writer->getMergedData();
+
+        // Check the difference between the before and after data.
+        $diff_array = array_merge(array_diff_assoc($post, $post_data), $diff_array);
+
+        foreach ($diff_array as $diff_key => $diff_value) {
+            if (array_key_exists($diff_key, $post_data)) {
+                $diff_array[$diff_key] = $post_data[$diff_key];
+            }
+        }
+
+        if (count($diff_array) == 0) {
+            // Nothing was changed, throw error.
+            return array('error' => 9, 'errors' => 'No values were changed.');
+        }
+
+        return $diff_array;
     }
 
     public function editThread($thread, $user, $edit_data = array()) {
