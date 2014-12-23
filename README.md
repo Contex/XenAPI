@@ -1,4 +1,5 @@
-XenAPI
+![Logo](http://i.imgur.com/1qYuVcr.png)
+
 ==========
 
 This REST API allows usage of several of XenForo functions, such as authentication, user information and many more functions!
