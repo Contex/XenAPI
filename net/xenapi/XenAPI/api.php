@@ -94,6 +94,7 @@ class RestAPI {
         'createprofilepostcomment' => 'authenticated',
         'createthread'             => 'authenticated',
         'deletepost'               => 'authenticated',
+        'deleteuser'               => 'authenticated',
         'downgradeuser'            => 'api_key',
         'editpost'                 => 'authenticated',
         'editthread'               => 'authenticated',
@@ -1232,6 +1233,58 @@ class RestAPI {
                 $delete_results = $this->xenAPI->deletePost($this->getRequest('post_id'), $reason, $this->hasRequest('hard_delete'), $this->getUser());
 
                 $this->handleUserError($delete_results, 'post_deletion_error', 'deleting post');
+            case 'deleteuser': 
+                /**
+                * TODO
+                *
+                * EXAMPLE:
+                *   - api.php
+                */
+                if ($this->hasRequest('value')) {
+                    if (!$this->getRequest('value')) {
+                        // Throw error if the 'value' argument is set but empty.
+                        $this->throwError(1, 'value');
+                        break;
+                    }
+                    $user = $this->getRequest('value');
+                } else if ($this->hasAPIKey()) {
+                    if (!$this->hasRequest('value')) {
+                        // The 'value' argument has not been set, throw error.
+                        $this->throwError(3, 'value');
+                        break;
+                    } else if (!$this->getRequest('value')) {
+                        // Throw error if the 'value' argument is set but empty.
+                        $this->throwError(1, 'value');
+                        break;
+                    }
+                    $user = $this->getRequest('value');
+                } else {
+                    $user = NULL;
+                }
+
+                //if ($this->hasAPIKey() || $this->getUser()->isAdmin()) {
+
+                if ($this->hasRequest('reason')) {
+                    if (!$this->getRequest('reason')) {
+                        // Throw error if the 'reason' argument is set but empty.
+                        $this->throwError(1, 'reason');
+                        break;
+                    }
+                    $reason = $this->getRequest('reason');
+                } else {
+                    $reason = NULL;
+                }
+
+                // Try to grab the user from XenForo.
+                $user = $this->getXenAPI()->getUser($user);
+                if (!$user->isRegistered()) {
+                    // Requested user was not registered, throw error.
+                    $this->throwError(4, 'user', $this->getRequest('value'));
+                }
+
+                $delete_results = $this->getXenAPI()->deleteUser($user);
+
+                $this->handleUserError($delete_results, 'user_deletion_error', 'deleting user');
             case 'editpost':
             	if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
                     // The 'grab_as' argument has not been set, throw error.
@@ -3620,6 +3673,34 @@ class XenAPI {
         }
 
         return $post;
+    }
+
+    public function deleteUser($user) {
+    	if (!$user) {
+            return array('error' => 3, 'errors' => 'The user array key was not set.');
+        }
+        if (!$user->isRegistered()) {
+            return array('error' => 4, 'errors' => 'User is not registered.');
+        }
+    	$this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+        // Check if user is super admin.
+        if ($this->getModels()->getModel('user')->isUserSuperAdmin($user->data)) {
+            // User is super admin, we do not allow deleting super admins, return error.
+            return array('error' => 6, 'errors' => 'Deleting super admins is disabled.');
+        }
+    	
+    	$writer = XenForo_DataWriter::create('XenForo_DataWriter_User', XenForo_DataWriter::ERROR_EXCEPTION);
+		$writer->setExistingData($user->data);
+		$writer->preDelete();
+
+		if ($writer->hasErrors()) {
+            // The delete failed, return errors.
+            return array('error' => TRUE, 'errors' => $writer->getErrors());
+        }
+
+		$writer->delete();
+
+		return array('success' => TRUE);
     }
 
     public function editPost($post, $user, $edit_data = array()) {
