@@ -15,17 +15,60 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-class XenAPI 
+class XenAPI
 {
 	const USER_AGENT = 'XenAPI/1.0';
-	private $url, $api_key, $method, $parameters = NULL;
+	private $url, $api_key, $salt, $method, $parameters = NULL;
 	private $timeout = 45;
 
-	public function __construct($url, $api_key = NULL)
+	public function __construct($url, $api_key = NULL, $salt = NULL)
 	{
 		$this->url = $url;
 		$this->api_key = $api_key;
+		$this->salt = $salt;
 	}
+
+	public function encryptString($string) {
+        return trim(
+            base64_encode(
+                mcrypt_encrypt(
+                    MCRYPT_RIJNDAEL_256,
+                    $this->getSalt();,
+                    $string,
+                    MCRYPT_MODE_ECB,
+                    mcrypt_create_iv(
+                        mcrypt_get_iv_size(
+                            MCRYPT_RIJNDAEL_256,
+                            MCRYPT_MODE_ECB
+                        ),
+                    MCRYPT_RAND)
+                )
+            )
+        );
+    }
+
+    public function decryptString($string) {
+         return trim(
+            mcrypt_decrypt(
+                MCRYPT_RIJNDAEL_256,
+                $this->getSalt();,
+                base64_decode($string),
+                MCRYPT_MODE_ECB,
+                mcrypt_create_iv(
+                    mcrypt_get_iv_size(
+                        MCRYPT_RIJNDAEL_256,
+                        MCRYPT_MODE_ECB
+                    ),
+                    MCRYPT_RAND
+                )
+            )
+        );
+    }
+
+    public function getSalt()
+    {
+    	return $this->salt;
+    }
 
 	public function getURL()
 	{
@@ -91,10 +134,10 @@ class XenAPI
 	{
 		return $this->getURL()
 			. '?action=' . $this->getMethod()
-			. ($this->getParameters() !== NULL 
-				&& is_array($this->getParameters()) 
-				&& count($this->getParameters()) > 0 
-					? '&' . http_build_query($this->getParameters()) 
+			. ($this->getParameters() !== NULL
+				&& is_array($this->getParameters())
+				&& count($this->getParameters()) > 0
+					? '&' . http_build_query($this->getParameters())
 					: ''
 			);
 	}
@@ -103,9 +146,9 @@ class XenAPI
 	{
 		if (is_callable('curl_init')) {
 			$ch = curl_init();
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE); 
-		  	curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE); 
-		  	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 0); 
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+		  	curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
+		  	curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 0);
 			curl_setopt($ch, CURLOPT_TIMEOUT, $this->getTimeout());
 			curl_setopt($ch, CURLOPT_URL, $url);
 			curl_setopt($ch, CURLOPT_USERAGENT, self::USER_AGENT);
@@ -166,27 +209,18 @@ class XenAPI
 		return $this->execute();
 	}
 
-	public function login($username, $password, $ip_address)
+	public function login($username, $password, $redirect_url)
 	{
+		$login_hash = $this->encryptString(base64_encode(json_encode(array(
+			'username'     => $username,
+			'password'     => $password,
+			'redirect_url' => $redirect_url
+		))));
 		$this->setMethod('login');
 		$this->setParameters(array(
-			'username'   => $username,
-			'password'   => $password,
-			'ip_address' => $ip_address
+			'login_hash' => $login_hash
 		));
-		$response = $this->execute();
-
-		$success = setcookie(
-			$response['cookie_name'], 
-			$response['cookie_id'], 
-			$response['cookie_expiration'], 
-			$response['cookie_path'], 
-			$response['cookie_domain'],
-			$response['cookie_secure'],
-			TRUE
-		);
-
-		return $success;
+		header('Location: ' . $this->getAPIURL());
 	}
 }
 ?>

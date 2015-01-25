@@ -18,10 +18,9 @@
 header('Content-type: text/plain');
 require_once 'xen_api.php';
 
-$xenAPI = new XenAPI('http://xenapi.net/api.php', 'REPLACE_THIS_WITH_AN_API_KEY');
+$xenAPI = new XenAPI('http://xenapi.net/api.php', 'REPLACE_THIS_WITH_AN_API_KEY', 'REPLACE_THIS_WITH_A_SALT');
 try {
-	$response = $xenAPI->login('Contex', 'Password', '127.0.0.1');
-	var_dump($response);
+	$xenAPI->login('Contex', 'Password', 'http://google.com');
 } catch (Exception $e) {
 	if ($e->getCode() == 400) {
 		$error = json_decode($e->getMessage(), TRUE);
