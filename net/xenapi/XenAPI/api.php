@@ -721,13 +721,13 @@ class RestAPI {
     */
     public function throwError($error, $extra = NULL, $extra2 = NULL) {
         if ($error == self::USER_ERROR || $error == self::THREAD_ERROR || $error == self::POST_ERROR) {
-        	if ($error == self::USER_ERROR) {
-        		$error_key = 'user';
-        	} else if ($error == self::THREAD_ERROR) {
-        		$error_key = 'thread';
-        	} else if ($error == self::POST_ERROR) {
-        		$error_key = 'post';
-        	}
+            if ($error == self::USER_ERROR) {
+                $error_key = 'user';
+            } else if ($error == self::THREAD_ERROR) {
+                $error_key = 'thread';
+            } else if ($error == self::POST_ERROR) {
+                $error_key = 'post';
+            }
             if ($extra2 == NULL) {
                 $extra2 = 'performing a ' . $error_key . ' action';
             }
@@ -1374,7 +1374,7 @@ class RestAPI {
 
                 $this->handleUserError($delete_results, 'user_deletion_error', 'deleting user');
             case 'editpost':
-            	if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
                     // The 'grab_as' argument has not been set, throw error.
                     $this->throwError(3, 'grab_as');
                 } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
@@ -1426,20 +1426,20 @@ class RestAPI {
                     // There are no fields set, throw error.
                     $this->throwError(8, $edit_fields);
                 } else if (array_key_exists('thread_id', $edit_data)) {
-                	$thread = $this->getXenAPI()->getThread($edit_data['thread_id'], array(), $this->getUser());
-	                if ($thread == NULL) {
-	                     // Could not find the thread, throw error.
-	                    $this->throwError(19, 'thread', $edit_data['thread_id']);
-	                }
+                    $thread = $this->getXenAPI()->getThread($edit_data['thread_id'], array(), $this->getUser());
+                    if ($thread == NULL) {
+                         // Could not find the thread, throw error.
+                        $this->throwError(19, 'thread', $edit_data['thread_id']);
+                    }
                 }
 
                 // Get edit results.
                 $edit_results = $this->getXenAPI()->editPost($post, $this->getUser(), $edit_data);
 
-            	if (empty($edit_results['error'])) {
+                if (empty($edit_results['error'])) {
                     // Edit was successful, return results.
                     $this->sendResponse($edit_results);
-            	} else {
+                } else {
                     // The registration failed, process errors.
                     if (is_array($edit_results['errors'])) {
                         // The error message was an array, loop through the messages.
@@ -1452,7 +1452,7 @@ class RestAPI {
                                     'error_field' => $error_field,
                                     'error_phrase' => $error
                                 );
-                        		// Throw error message.
+                                // Throw error message.
                                 $this->throwError(self::POST_ERROR, $edit_error, 'editing a post');
 
                             }
@@ -1465,7 +1465,7 @@ class RestAPI {
                                 'error_phrase' => $error->render()
                             );
 
-                        	// Throw error message.
+                            // Throw error message.
                             $this->throwError(self::POST_ERROR, $edit_error, 'editing a post');
                         }
                     } else {
@@ -1479,7 +1479,7 @@ class RestAPI {
                     }
                 }
             case 'editthread':
-            	if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
+                if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
                     // The 'grab_as' argument has not been set, throw error.
                     $this->throwError(3, 'grab_as');
                 } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
@@ -1531,20 +1531,20 @@ class RestAPI {
                     // There are no fields set, throw error.
                     $this->throwError(8, $edit_fields);
                 } else if (array_key_exists('node_id', $edit_data)) {
-                	$node = $this->getXenAPI()->getNode($edit_data['node_id'], array(), $this->getUser());
-	                if ($node == NULL) {
-	                     // Could not find the node, throw error.
-	                    $this->throwError(19, 'node', $edit_data['node_id']);
-	                }
+                    $node = $this->getXenAPI()->getNode($edit_data['node_id'], array(), $this->getUser());
+                    if ($node == NULL) {
+                         // Could not find the node, throw error.
+                        $this->throwError(19, 'node', $edit_data['node_id']);
+                    }
                 }
 
                 // Get edit results.
                 $edit_results = $this->getXenAPI()->editThread($thread, $this->getUser(), $edit_data);
 
-            	if (empty($edit_results['error'])) {
+                if (empty($edit_results['error'])) {
                     // Edit was successful, return results.
                     $this->sendResponse($edit_results);
-            	} else {
+                } else {
                     // The registration failed, process errors.
                     if (is_array($edit_results['errors'])) {
                         // The error message was an array, loop through the messages.
@@ -1557,7 +1557,7 @@ class RestAPI {
                                     'error_field' => $error_field,
                                     'error_phrase' => $error
                                 );
-                        		// Throw error message.
+                                // Throw error message.
                                 $this->throwError(self::THREAD_ERROR, $edit_error, 'editing a thread');
 
                             }
@@ -1570,7 +1570,7 @@ class RestAPI {
                                 'error_phrase' => $error->render()
                             );
 
-                        	// Throw error message.
+                            // Throw error message.
                             $this->throwError(self::THREAD_ERROR, $edit_error, 'editing a thread');
                         }
                     } else {
@@ -3036,8 +3036,8 @@ class RestAPI {
                     } else {
                         // Start session and saves the session to the database
                         $session = $this->getXenAPI()->login(
-                        	$user->getID(),
-                        	$user->getUsername()
+                            $user->getID(),
+                            $user->getUsername()
                         );
                         die(header('Location: ' . $user_information['redirect_url']));
                     }
@@ -3744,37 +3744,37 @@ class XenAPI {
     }
 
     public function deleteUser($user) {
-    	if (!$user) {
+        if (!$user) {
             return array('error' => 3, 'errors' => 'The user array key was not set.');
         }
         if (!$user->isRegistered()) {
             return array('error' => 4, 'errors' => 'User is not registered.');
         }
-    	$this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
+        $this->getModels()->checkModel('user', XenForo_Model::create('XenForo_Model_User'));
         // Check if user is super admin.
         if ($this->getModels()->getModel('user')->isUserSuperAdmin($user->data)) {
             // User is super admin, we do not allow deleting super admins, return error.
             return array('error' => 6, 'errors' => 'Deleting super admins is disabled.');
         }
 
-    	$writer = XenForo_DataWriter::create('XenForo_DataWriter_User', XenForo_DataWriter::ERROR_EXCEPTION);
-		$writer->setExistingData($user->data);
-		$writer->preDelete();
+        $writer = XenForo_DataWriter::create('XenForo_DataWriter_User', XenForo_DataWriter::ERROR_EXCEPTION);
+        $writer->setExistingData($user->data);
+        $writer->preDelete();
 
-		if ($writer->hasErrors()) {
+        if ($writer->hasErrors()) {
             // The delete failed, return errors.
             return array('error' => TRUE, 'errors' => $writer->getErrors());
         }
 
-		$writer->delete();
+        $writer->delete();
 
-		return array('success' => TRUE);
+        return array('success' => TRUE);
     }
 
     public function editPost($post, $user, $edit_data = array()) {
-    	unset($post['absolute_url']);
-    	unset($post['message_html']);
-    	if (!$user) {
+        unset($post['absolute_url']);
+        unset($post['message_html']);
+        if (!$user) {
             return array('error' => 3, 'errors' => 'The user array key was not set.');
         }
         if (!$user->isRegistered()) {
@@ -3793,8 +3793,8 @@ class XenAPI {
         }
 
         if (array_key_exists('message', $edit_data)) {
-	        $edit_data['message'] = XenForo_Helper_String::autoLinkBbCode($edit_data['message']);
-	    }
+            $edit_data['message'] = XenForo_Helper_String::autoLinkBbCode($edit_data['message']);
+        }
 
         // Init the diff array.
         $diff_array = array();
@@ -3805,10 +3805,10 @@ class XenAPI {
         // Set the existing data of the user before we submit the data.
         $writer->setExistingData($post['post_id']);
 
-		// Bulkset the edited data.
-		$writer->bulkSet($edit_data);
+        // Bulkset the edited data.
+        $writer->bulkSet($edit_data);
 
-    	// Pre save the data.
+        // Pre save the data.
         $writer->preSave();
 
         if ($writer->hasErrors()) {
@@ -3840,8 +3840,8 @@ class XenAPI {
     }
 
     public function editThread($thread, $user, $edit_data = array()) {
-    	unset($thread['absolute_url']);
-    	if (!$user) {
+        unset($thread['absolute_url']);
+        if (!$user) {
             return array('error' => 3, 'errors' => 'The user array key was not set.');
         }
         if (!$user->isRegistered()) {
@@ -3880,10 +3880,10 @@ class XenAPI {
         // Set the existing data of the user before we submit the data.
         $writer->setExistingData($thread['thread_id']);
 
-		// Bulkset the edited data.
-		$writer->bulkSet($edit_data);
+        // Bulkset the edited data.
+        $writer->bulkSet($edit_data);
 
-    	// Pre save the data.
+        // Pre save the data.
         $writer->preSave();
 
         if ($writer->hasErrors()) {
@@ -4540,15 +4540,15 @@ class XenAPI {
         }
 
         if ($post !== FALSE && $post !== NULL) {
-	        // Add HTML as well
-	        $formatter = XenForo_BbCode_Formatter_Base::create();
-	        $parser = new XenForo_BbCode_Parser($formatter);
-	        $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
+            // Add HTML as well
+            $formatter = XenForo_BbCode_Formatter_Base::create();
+            $parser = new XenForo_BbCode_Parser($formatter);
+            $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
 
-	        $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
-	    } else {
-	    	$post = NULL;
-	    }
+            $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
+        } else {
+            $post = NULL;
+        }
 
         return $post;
     }
@@ -4636,15 +4636,15 @@ class XenAPI {
             }
 
             if ($post !== FALSE && $post !== NULL) {
-	            // Add HTML as well
-	            $formatter = XenForo_BbCode_Formatter_Base::create();
-	            $parser = new XenForo_BbCode_Parser($formatter);
-	            $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
+                // Add HTML as well
+                $formatter = XenForo_BbCode_Formatter_Base::create();
+                $parser = new XenForo_BbCode_Parser($formatter);
+                $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
 
-	            $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
-	        } else {
-	        	$post = NULL;
-	        }
+                $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
+            } else {
+                $post = NULL;
+            }
         }
         return array_values($post_list);
     }
@@ -4655,31 +4655,43 @@ class XenAPI {
     public function canViewPost($user, $post, $permissions = NULL) {
         // Check if the post model has initialized.
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
+        if ($user === NULL) {
+            $visitor = XenForo_Visitor::getInstance();
+            $user_data = $visitor->toArray();
+        } else {
+            $user_data = $user->getData();
+        }
         if ($permissions == NULL) {
             // Let's grab the permissions.
             $post = $this->getPost($post['post_id'], array(
-                'permissionCombinationId' => $user->data['permission_combination_id'],
+                'permissionCombinationId' => $user_data['permission_combination_id'],
                 'join' => XenForo_Model_Post::FETCH_FORUM
             ));
 
             // Unserialize the permissions.
             $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
         }
-        return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData());
+        return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user_data);
     }
 
     public function canPostThreadInForum($user, $forum, $permissions = NULL) {
         // Does not take in count of private nodes.
         if (!empty($forum['node_type_id'])) {
+            if ($user === NULL) {
+                $visitor = XenForo_Visitor::getInstance();
+                $user_data = $visitor->toArray();
+            } else {
+                $user_data = $user->getData();
+            }
             if ($permissions == NULL) {
                 // Let's grab the permissions.
-                $forum = $this->getForum($forum['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+                $forum = $this->getForum($forum['node_id'], array('permissionCombinationId' => $user_data['permission_combination_id']));
 
                 // Unserialize the permissions.
                 $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
             }
             $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
-            return $this->getModels()->getModel('forum')->canPostThreadInForum($forum, $null, $permissions, $user->getData());
+            return $this->getModels()->getModel('forum')->canPostThreadInForum($forum, $null, $permissions, $user_data);
         }
         return FALSE;
     }
@@ -4687,14 +4699,20 @@ class XenAPI {
     public function canReplyToThread($user, $thread, $forum, $permissions = NULL) {
         // Check if the thread model has initialized.
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
+        if ($user === NULL) {
+            $visitor = XenForo_Visitor::getInstance();
+            $user_data = $visitor->toArray();
+        } else {
+            $user_data = $user->getData();
+        }
         if ($permissions == NULL) {
             // Let's grab the permissions.
-            $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
+            $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user_data['permission_combination_id']));
 
             // Unserialize the permissions.
             $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
         }
-        return $this->getModels()->getModel('thread')->canReplyToThread($thread, $forum, $null, $permissions, $user->getData());
+        return $this->getModels()->getModel('thread')->canReplyToThread($thread, $forum, $null, $permissions, $user_data);
     }
 
     /**
@@ -4830,15 +4848,15 @@ class XenAPI {
         }
 
         if ($thread !== FALSE && $thread !== NULL) {
-	        if (isset($grab_content)) {
-	            $posts = $this->getPosts(array('thread_id' => $thread_id), array('limit' => $content_limit), $user);
-	            $thread['content'] = array('count' => count($posts), 'content' => $posts);
-	            unset($posts);
-	        }
-	        $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
-	    } else {
-	    	$thread = NULL;
-	    }
+            if (isset($grab_content)) {
+                $posts = $this->getPosts(array('thread_id' => $thread_id), array('limit' => $content_limit), $user);
+                $thread['content'] = array('count' => count($posts), 'content' => $posts);
+                unset($posts);
+            }
+            $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
+        } else {
+            $thread = NULL;
+        }
 
         return $thread;
     }
@@ -4879,18 +4897,18 @@ class XenAPI {
                 }
             }
             if ($thread !== FALSE && $thread !== NULL) {
-	            if (isset($grab_content)) {
-	                $posts = $this->getPosts(array('thread_id' => $thread['thread_id']), array('limit' => $content_limit), $user);
-	                $thread['content'] = array('count' => count($posts), 'content' => $posts);
-	                unset($posts);
-	            }
-	            if ($this->hasAddon('Waindigo_CustomFields') && $this->hasModel('Waindigo_CustomFields_Model_ThreadField')) {
-	                $thread['custom_fields'] = $thread['custom_fields'] == FALSE ? NULL : unserialize($thread['custom_fields']);
-	            }
-	            $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
-	        } else {
-	        	$thread = NULL;
-	        }
+                if (isset($grab_content)) {
+                    $posts = $this->getPosts(array('thread_id' => $thread['thread_id']), array('limit' => $content_limit), $user);
+                    $thread['content'] = array('count' => count($posts), 'content' => $posts);
+                    unset($posts);
+                }
+                if ($this->hasAddon('Waindigo_CustomFields') && $this->hasModel('Waindigo_CustomFields_Model_ThreadField')) {
+                    $thread['custom_fields'] = $thread['custom_fields'] == FALSE ? NULL : unserialize($thread['custom_fields']);
+                }
+                $thread['absolute_url'] = self::getBoardURL('threads', $thread['thread_id']);
+            } else {
+                $thread = NULL;
+            }
         }
         return array_values($thread_list);
     }
