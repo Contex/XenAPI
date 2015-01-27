@@ -33,7 +33,7 @@ class XenAPI
             base64_encode(
                 mcrypt_encrypt(
                     MCRYPT_RIJNDAEL_256,
-                    $this->getSalt();,
+                    $this->getSalt(),
                     $string,
                     MCRYPT_MODE_ECB,
                     mcrypt_create_iv(
@@ -51,7 +51,7 @@ class XenAPI
          return trim(
             mcrypt_decrypt(
                 MCRYPT_RIJNDAEL_256,
-                $this->getSalt();,
+                $this->getSalt(),
                 base64_decode($string),
                 MCRYPT_MODE_ECB,
                 mcrypt_create_iv(
