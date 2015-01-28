@@ -4542,7 +4542,7 @@ class XenAPI {
         if ($post !== FALSE && $post !== NULL) {
             // Add HTML as well
             $formatter = XenForo_BbCode_Formatter_Base::create();
-            $parser = new XenForo_BbCode_Parser($formatter);
+            $parser = XenForo_BbCode_Parser::create($formatter);
             $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
 
             $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
@@ -4638,7 +4638,7 @@ class XenAPI {
             if ($post !== FALSE && $post !== NULL) {
                 // Add HTML as well
                 $formatter = XenForo_BbCode_Formatter_Base::create();
-                $parser = new XenForo_BbCode_Parser($formatter);
+                $parser = XenForo_BbCode_Parser::create($formatter);
                 $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
 
                 $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
