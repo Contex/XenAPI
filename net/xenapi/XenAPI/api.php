@@ -407,22 +407,13 @@ class RestAPI {
             if ($this->getHash() == $this->getAPIKey()) {
                 // The hash equals the API key, return TRUE.
                 return TRUE;
-            }
-            if (strpos($this->getHash(), ':') !== FALSE) {
-                // The hash contains : (username:hash), split it into an array.
-                $array = explode(':', $this->getHash());
-                // Get the user and check if the user is valid (registered).
-                $user = $this->xenAPI->getUser($array[0]);
-                if ($user->isRegistered()) {
-                    // User is registered, get the hash from the authentication record.
-                    $record = $user->getAuthenticationRecord();
-                    $ddata = unserialize($record['data']);
-                    $decoded = base64_decode($array[1], TRUE);
-                    if ($ddata['hash'] == $array[1] || ($decoded !== FALSE && $ddata['hash'] == $decoded)) {
-                        // The hash in the authentication record equals the hash in the 'hash' argument.
-                        return TRUE;
-                    }
+            } else if (preg_match('`^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$`', $this->getHash())) {
+                $user_information = json_decode(base64_decode($this->getHash()), TRUE);
+                if ($user_information === NULL) {
+                    return NULL;
                 }
+                $user = $this->getXenAPI()->getUser($user_information['username']);
+                return $user->isRegistered() && $user->validateAuthentication($user_information['hash']);
             }
         }
         return FALSE;
@@ -518,9 +509,24 @@ class RestAPI {
             return $this->user;
         } else if (isset($this->grab_as) && $this->grab_as !== NULL) {
             return $this->grab_as;
-        } else if (strpos($this->getHash(), ':') !== FALSE) {
-            $array = explode(':', $this->getHash());
-            $this->user = $this->xenAPI->getUser($array[0]);
+        } else if (preg_match('`^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$`', $this->getHash())) {
+            $user_information = json_decode(base64_decode($this->getHash()), TRUE);
+            if ($user_information === NULL) {
+                return NULL;
+            }
+            $user = $this->getXenAPI()->getUser($user_information['username']);
+            if ($user->isRegistered() && $user->validateAuthentication($user_information['hash'])) {
+                // Authentication was valid!
+                $record = $user->getAuthenticationRecord();
+                $ddata = unserialize($record['data']);
+                // Send the hash in responsel.
+                $this->user = $user;
+                return $this->user;
+            }
+        } else if (!$this->hasAPIKey()) {
+            $visitor = XenForo_Visitor::getInstance();
+            $user = new User($this->getXenAPI()->getModels(), $visitor->toArray());
+            $this->user = $user;
             return $this->user;
         }
         return NULL;
@@ -900,7 +906,11 @@ class RestAPI {
                         $record = $user->getAuthenticationRecord();
                         $ddata = unserialize($record['data']);
                         // Send the hash in responsel.
-                        $this->sendResponse(array('hash' => base64_encode($ddata['hash'])));
+                        $user_information = base64_encode(json_encode(array(
+                            'username' => $user_information['username'],
+                            'hash'     => $ddata['hash']
+                        )));
+                        $this->sendResponse(array('hash' => $user_information));
                     } else {
                         // The username or password was wrong, throw error.
                         $this->throwError(5, 'Invalid username or password!');
@@ -4402,7 +4412,7 @@ class XenAPI {
     /**
     * Returns the Node array of the $node_id parameter.
     */
-    public function getNode($node_id, $fetchOptions = array()) {
+    public function getNode($node_id, $fetchOptions = array(), $user = NULL) {
         $this->getModels()->checkModel('node', XenForo_Model::create('XenForo_Model_Node'));
         $node = $this->getModels()->getModel('node')->getNodeById($node_id, $fetchOptions);
         if (!empty($node['node_type_id'])) {
@@ -4446,7 +4456,7 @@ class XenAPI {
             // Check if user is set.
             if ($user !== NULL) {
                 // Get the node.
-                $node = $this->getNode($node['node_id'], array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])));
+                $node = $this->getNode($node['node_id'], array_merge($fetchOptions, array('permissionCombinationId' => $user->data['permission_combination_id'])), $user);
                 $permissions = XenForo_Permission::unserializePermissions($node['node_permission_cache']);
 
                 // User does not have permission to view this nodes, unset it and continue the loop.
@@ -4542,7 +4552,7 @@ class XenAPI {
         if ($post !== FALSE && $post !== NULL) {
             // Add HTML as well
             $formatter = XenForo_BbCode_Formatter_Base::create();
-            $parser = XenForo_BbCode_Parser::create($formatter);
+            $parser = new XenForo_BbCode_Parser($formatter);
             $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
 
             $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
@@ -4638,7 +4648,7 @@ class XenAPI {
             if ($post !== FALSE && $post !== NULL) {
                 // Add HTML as well
                 $formatter = XenForo_BbCode_Formatter_Base::create();
-                $parser = XenForo_BbCode_Parser::create($formatter);
+                $parser = new XenForo_BbCode_Parser($formatter);
                 $post['message_html'] = str_replace("\n", '', $parser->render($post['message']));
 
                 $post['absolute_url'] = self::getBoardURL('posts', $post['post_id']);
@@ -4655,43 +4665,31 @@ class XenAPI {
     public function canViewPost($user, $post, $permissions = NULL) {
         // Check if the post model has initialized.
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
-        if ($user === NULL) {
-            $visitor = XenForo_Visitor::getInstance();
-            $user_data = $visitor->toArray();
-        } else {
-            $user_data = $user->getData();
-        }
         if ($permissions == NULL) {
             // Let's grab the permissions.
             $post = $this->getPost($post['post_id'], array(
-                'permissionCombinationId' => $user_data['permission_combination_id'],
+                'permissionCombinationId' => $user->data['permission_combination_id'],
                 'join' => XenForo_Model_Post::FETCH_FORUM
             ));
 
             // Unserialize the permissions.
             $permissions = XenForo_Permission::unserializePermissions($post['node_permission_cache']);
         }
-        return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user_data);
+        return $this->getModels()->getModel('post')->canViewPost($post, array('node_id' => $post['node_id']), array(), $null, $permissions, $user->getData());
     }
 
     public function canPostThreadInForum($user, $forum, $permissions = NULL) {
         // Does not take in count of private nodes.
         if (!empty($forum['node_type_id'])) {
-            if ($user === NULL) {
-                $visitor = XenForo_Visitor::getInstance();
-                $user_data = $visitor->toArray();
-            } else {
-                $user_data = $user->getData();
-            }
             if ($permissions == NULL) {
                 // Let's grab the permissions.
-                $forum = $this->getForum($forum['node_id'], array('permissionCombinationId' => $user_data['permission_combination_id']));
+                $forum = $this->getForum($forum['node_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
 
                 // Unserialize the permissions.
                 $permissions = XenForo_Permission::unserializePermissions($forum['node_permission_cache']);
             }
             $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
-            return $this->getModels()->getModel('forum')->canPostThreadInForum($forum, $null, $permissions, $user_data);
+            return $this->getModels()->getModel('forum')->canPostThreadInForum($forum, $null, $permissions, $user->getData());
         }
         return FALSE;
     }
@@ -4699,20 +4697,14 @@ class XenAPI {
     public function canReplyToThread($user, $thread, $forum, $permissions = NULL) {
         // Check if the thread model has initialized.
         $this->getModels()->checkModel('thread', XenForo_Model::create('XenForo_Model_Thread'));
-        if ($user === NULL) {
-            $visitor = XenForo_Visitor::getInstance();
-            $user_data = $visitor->toArray();
-        } else {
-            $user_data = $user->getData();
-        }
         if ($permissions == NULL) {
             // Let's grab the permissions.
-            $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user_data['permission_combination_id']));
+            $thread = $this->getThread($thread['thread_id'], array('permissionCombinationId' => $user->data['permission_combination_id']));
 
             // Unserialize the permissions.
             $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
         }
-        return $this->getModels()->getModel('thread')->canReplyToThread($thread, $forum, $null, $permissions, $user_data);
+        return $this->getModels()->getModel('thread')->canReplyToThread($thread, $forum, $null, $permissions, $user->getData());
     }
 
     /**
@@ -5819,7 +5811,7 @@ class User {
     * Verifies the password of the user.
     */
     public function validateAuthentication($password) {
-        if (strlen($password) == 64) {
+        if (strlen($password) == 60) {
             $record = $this->getAuthenticationRecord();
             $ddata = unserialize($record['data']);
             return $ddata['hash'] == $password;
