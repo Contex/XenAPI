@@ -157,7 +157,8 @@ class RestAPI {
         20 => '{ERROR} not have permissions to view {ERROR2}',
         21 => 'The "{ERROR}" argument has to be a number',
         22 => 'The argument for "order_by", "{ERROR}", was not found in the list available order by list: "({ERROR2})"',
-        23 => 'The argument for "node_type", "{ERROR}", was not found in the list available node type list: "({ERROR2})"'
+        23 => 'The argument for "node_type", "{ERROR}", was not found in the list available node type list: "({ERROR2})"',
+        24 => 'The argument for "discussion_state", "{ERROR}", was not found in the list available discussion state list: "({ERROR2})"'
     );
 
     // Specific errors related to user actions.
@@ -1173,7 +1174,7 @@ class RestAPI {
                 $thread_data = array();
 
                 // Array of additional parameters.
-                $additional_parameters = array('prefix_id', 'discussion_open', 'sticky');
+                $additional_parameters = array('prefix_id', 'discussion_open', 'discussion_state', 'sticky');
 
                 foreach ($additional_parameters as $additional_parameter) {
                     // Check if the additional parameter is set and not empty.
@@ -1183,6 +1184,13 @@ class RestAPI {
                         // Set the request value.
                         $thread_data[$additional_parameter] = $this->getRequest($additional_parameter);
                     }
+                }
+
+                // Check if the discussion state that is set exists.
+                if (isset($thread_data['discussion_state']) && !in_array($thread_data['discussion_state'], ['visible', 'moderated', 'deleted'])) {
+                    // Discussion state could not be found in the discussion state list, throw error.
+                    $this->throwError(24, $this->getRequest('discussion_state'), implode(', ', ['visible', 'moderated', 'deleted']));
+                    break;
                 }
 
                 $thread_data += array(
@@ -3593,10 +3601,15 @@ class XenAPI {
 
         $this->getModels()->checkModel('post', XenForo_Model::create('XenForo_Model_Post'));
 
-        // discussion state changes instead of first message state
-        $writer->set('discussion_state', $this->getModels()->getModel('post')->getPostInsertMessageState(array(), $forum));
-
         $this->getModels()->checkModel('forum', XenForo_Model::create('XenForo_Model_Forum'));
+
+        // discussion state - moderator permission required
+        if (!empty($thread_data['discussion_state']) && $this->getModels()->getModel('forum')->canLockUnlockThreadInForum($forum, $null, $permissions, $user->getData())) {
+            $writer->set('discussion_state', $thread_data['discussion_state']);
+        } else {
+            // discussion state changes instead of first message state
+            $writer->set('discussion_state', $this->getModels()->getModel('post')->getPostInsertMessageState(array(), $forum));
+        }
 
         // discussion open state - moderator permission required
         if (!empty($thread_data['discussion_open']) && $this->getModels()->getModel('forum')->canLockUnlockThreadInForum($forum, $null, $permissions, $user->getData())) {
