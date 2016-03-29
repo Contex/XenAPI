@@ -56,7 +56,7 @@ if ($restAPI->getAPIKey() !== NULL && $restAPI->isDefaultAPIKey()) {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.4.1';
+    const VERSION = '1.4.fix';
     const DEFAULT_APIKEY = 'REPLACE_THIS_WITH_AN_API_KEY';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
@@ -332,6 +332,64 @@ class RestAPI {
             // Limit is not set, default to $default variable.
             $this->limit = $default;
         }
+    }
+
+    private function stripUserData($user) {
+        /*
+        * Run through an additional permission check if the request is
+        * not using an API key, unset some variables depending on the 
+        * user level.
+        */
+        $data = $user->getData();
+        if (!$this->hasAPIKey()) {
+            // Unset variables since the API key isn't used.
+            if (isset($data['style_id'])) {
+                unset($data['style_id']);
+            }
+            if (isset($data['display_style_group_id'])) {
+                unset($data['display_style_group_id']);
+            }
+            if (isset($data['permission_combination_id'])) {
+                unset($data['permission_combination_id']);
+            }
+            if (!$this->getUser()->isAdmin()) {
+                // Unset variables if user is not an admin.
+                if (isset($data['is_banned'])) {
+                    unset($data['is_banned']);
+                }
+            }
+            if (!$this->getUser()->isModerator() && $this->getUser()->getID() != $user->getID()) {
+                // Unset variables if user is not a moderator.
+                if (isset($data['user_state'])) {
+                    unset($data['user_state']);
+                }
+                if (isset($data['visible'])) {
+                    unset($data['visible']);
+                }
+                if (isset($data['email'])) {
+                    unset($data['email']);
+                }
+                if (isset($data['custom_fields'])) {
+                    unset($data['custom_fields']);
+                }
+            } 
+            if ($this->getUser()->getID() != $user->getID()) {
+                // Unset variables if user does not equal the requested user by the 'value' argument.
+                if (isset($data['language_id'])) {
+                    unset($data['language_id']);
+                }
+                if (isset($data['message_count'])) {
+                    unset($data['message_count']);
+                }
+                if (isset($data['conversations_unread'])) {
+                    unset($data['conversations_unread']);
+                }
+                if (isset($data['alerts_unread'])) {
+                    unset($data['alerts_unread']);
+                }
+            }
+        }
+        return $data;
     }
     
     /**
@@ -2645,63 +2703,9 @@ class RestAPI {
                 *   - api.php?action=getUser&value=USERNAME&hash=USERNAME:HASH
                 *   - api.php?action=getUser&value=USERNAME&hash=API_KEY
                 */
-                $data = $user->getData();
-                
-                /*
-                * Run through an additional permission check if the request is
-                * not using an API key, unset some variables depending on the 
-                * user level.
-                */
-                if (!$this->hasAPIKey()) {
-                    // Unset variables since the API key isn't used.
-                    if (isset($data['style_id'])) {
-                        unset($data['style_id']);
-                    }
-                    if (isset($data['display_style_group_id'])) {
-                        unset($data['display_style_group_id']);
-                    }
-                    if (isset($data['permission_combination_id'])) {
-                        unset($data['permission_combination_id']);
-                    }
-                    if (!$this->getUser()->isAdmin()) {
-                        // Unset variables if user is not an admin.
-                        if (isset($data['is_banned'])) {
-                            unset($data['is_banned']);
-                        }
-                    }
-                    if (!$this->getUser()->isModerator() && $this->getUser()->getID() != $user->getID()) {
-                        // Unset variables if user is not a moderator.
-                        if (isset($data['user_state'])) {
-                            unset($data['user_state']);
-                        }
-                        if (isset($data['visible'])) {
-                            unset($data['visible']);
-                        }
-                        if (isset($data['email'])) {
-                            unset($data['email']);
-                        }
-                        if (isset($data['custom_fields'])) {
-                            unset($data['custom_fields']);
-                        }
-                    } 
-                    if ($this->getUser()->getID() != $user->getID()) {
-                        // Unset variables if user does not equal the requested user by the 'value' argument.
-                        if (isset($data['language_id'])) {
-                            unset($data['language_id']);
-                        }
-                        if (isset($data['message_count'])) {
-                            unset($data['message_count']);
-                        }
-                        if (isset($data['conversations_unread'])) {
-                            unset($data['conversations_unread']);
-                        }
-                        if (isset($data['alerts_unread'])) {
-                            unset($data['alerts_unread']);
-                        }
-                    }
-                }
+
                 // Send the response.
-                $this->sendResponse($data);
+                $this->sendResponse($this->stripUserData($user));
                 break;
             case 'getusers': 
                 /**
@@ -2715,7 +2719,18 @@ class RestAPI {
                 *   - api.php?action=getUsers&value=C*
                 */
 
-                if ($this->hasAPIKey() && $this->hasRequest('value') && !filter_var($this->getRequest('value'), FILTER_VALIDATE_IP) === false) {
+                if ($this->hasRequest('value') && strpos($this->getRequest('value', ',')) !== false) {
+                    $userIds = explode(',', $this->getRequest('value'));
+                    $results = [];
+                    foreach ($userIds as $userId) {
+                        $user = $this->getXenAPI()->getUser($userId);
+                        if (!$user->isRegistered()) {
+                            // Requested user was not registered, throw error.
+                            $this->throwError(4, 'user', $userId);
+                        }
+                        $results[] = $this->stripUserData($user); # TODO: only return user_id & username?
+                    }
+                } else if ($this->hasAPIKey() && $this->hasRequest('value') && !filter_var($this->getRequest('value'), FILTER_VALIDATE_IP) === false) {
                     $ip = $this->getRequest('value');
                     $users = $this->getXenAPI()->getUsersByIp($ip);
                     $results = [];
