@@ -2714,27 +2714,41 @@ class RestAPI {
                 *   - api.php?action=getUsers&value=Cont*
                 *   - api.php?action=getUsers&value=C*
                 */
-                if ($this->hasRequest('value')) {
-                    // Request has value.
-                    if (!$this->getRequest('value')) {
-                        // Throw error if the 'value' argument is set but empty.
-                        $this->throwError(1, 'value');
+
+                if ($this->hasAPIKey() && $this->hasRequest('value') && !filter_var($this->getRequest('value'), FILTER_VALIDATE_IP) === false) {
+                    $ip = $this->getRequest('value');
+                    $users = $this->getXenAPI()->getUsersByIp($ip);
+                    $results = [];
+                    foreach ($users as $user) {
+                        $results[] = [
+                            'user_id' => $user['user_id'],
+                            'username' => $user['username'],
+                            'log_date' => $user['log_date']
+                        ];
+                    }
+                } else {
+                    if ($this->hasRequest('value')) {
+                        // Request has value.
+                        if (!$this->getRequest('value')) {
+                            // Throw error if the 'value' argument is set but empty.
+                            $this->throwError(1, 'value');
+                            break;
+                        }
+                        // Replace the wildcard with '%' for the SQL query.
+                        $string = str_replace('*', '%', $this->getRequest('value'));
+                    } else if (!$this->hasRequest('order_by')) {
+                        // Nor the 'value' argument or the 'order_by' argument has been set, throw error.
+                        $this->throwError(3, 'value');
                         break;
                     }
-                    // Replace the wildcard with '%' for the SQL query.
-                    $string = str_replace('*', '%', $this->getRequest('value'));
-                } else if (!$this->hasRequest('order_by')) {
-                    // Nor the 'value' argument or the 'order_by' argument has been set, throw error.
-                    $this->throwError(3, 'value');
-                    break;
+
+                    // Check if the order by argument is set.
+                    $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'register_date', 'last_activity', 'trophy_points', 'alerts_unread', 'like_count'));
+                    
+                    // Perform the SQL query and grab all the usernames and user id's.
+                    $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
                 }
 
-                // Check if the order by argument is set.
-                $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'register_date', 'last_activity', 'trophy_points', 'alerts_unread', 'like_count'));
-                
-                // Perform the SQL query and grab all the usernames and user id's.
-                $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
-                
                 // Send the response.
                 $this->sendResponse($results);
                 break;
@@ -4855,6 +4869,11 @@ class XenAPI {
             $permissions = XenForo_Permission::unserializePermissions($thread['node_permission_cache']);
         }
         return $this->getModels()->getModel('thread')->canViewThread($thread, array(), $null, $permissions, $user->getData());
+    }
+
+    public function getUsersByIp($ip) {
+        $this->getModels()->checkModel('ip', XenForo_Model::create('XenForo_Model_Ip'));
+        return $this->getModels()->getModel('ip')->getUsersByIp($ip);
     }
     
     /**
