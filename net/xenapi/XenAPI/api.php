@@ -387,6 +387,9 @@ class RestAPI {
                 if (isset($data['alerts_unread'])) {
                     unset($data['alerts_unread']);
                 }
+                if (isset($data['upgrades'])) {
+                    unset($data['upgrades']);
+                }
             }
         }
         return $data;
@@ -831,6 +834,14 @@ class RestAPI {
                 // Nor the 'value' argument or the 'hash' argument has been set, throw error.
                 $this->throwError(3, 'value');
                 break;
+            }
+            if ($this->hasRequest('with_upgrades')) {
+                $user_upgrades = $this->getXenAPI()->getUserUpgrades($user);
+
+                if (!$user_upgrades && $this->hasRequest('user')) {
+                    $this->throwError(4, 'user upgrades', $this->getRequest('user'));
+                }
+                $user->data['upgrades'] = $user_upgrades;
             }
         }
     
