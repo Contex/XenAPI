@@ -56,7 +56,7 @@ if ($restAPI->getAPIKey() !== NULL && $restAPI->isDefaultAPIKey()) {
 $restAPI->processRequest();
 
 class RestAPI {
-    const VERSION = '1.4.fix';
+    const VERSION = '1.4.2';
     const DEFAULT_APIKEY = 'REPLACE_THIS_WITH_AN_API_KEY';
     const GENERAL_ERROR = 0x201;
     const USER_ERROR = 0x202;
