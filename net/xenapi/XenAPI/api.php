@@ -3984,7 +3984,7 @@ class XenAPI {
 
         if (!empty($diff_array['custom_fields'])) {
             // Check the difference in the custom fields.
-            $custom_fields_diff_array = array_diff_assoc(unserialize($user->data['custom_fields']), unserialize($diff_array['custom_fields']));
+            $custom_fields_diff_array = array_diff_assoc($user->data['custom_fields'], unserialize($diff_array['custom_fields']));
 
             unset($diff_array['custom_fields']);
 
