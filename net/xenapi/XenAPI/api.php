@@ -2531,6 +2531,16 @@ class RestAPI {
                 $this->setLimit(10);
                 $fetch_options = array('limit' => $this->limit);
 
+                // Check if request has discussion_state.
+                if ($this->hasRequest('discussion_state')) {
+                    if (!$this->getRequest('discussion_state')) {
+                        // Throw error if the 'discussion_state ' argument is set but empty.
+                        $this->throwError(1, 'discussion_state');
+                    }
+                    // Add the discussion state to the query conditions.
+                    $conditions['discussion_state'] = $this->getRequest('discussion_state');
+                }
+
                 // Check if request has author.
                 if ($this->hasRequest('author')) {
                     if (!$this->getRequest('author')) {
