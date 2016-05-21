@@ -2671,7 +2671,12 @@ class RestAPI {
                     $order_by_field = $this->checkOrderBy(array('user_id', 'message_count', 'conversations_unread', 'register_date', 'last_activity', 'trophy_points', 'alerts_unread', 'like_count'));
                     
                     // Perform the SQL query and grab all the usernames and user id's.
-                    $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" . ($this->hasRequest('order_by') ? ", `$order_by_field`" : '') . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE '$string'" : '') . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') . (($this->limit > 0) ? ' LIMIT ' . $this->limit : ''));
+                    // Perform the SQL query and grab all the usernames and user id's.
+                    $results = $this->xenAPI->getDatabase()->fetchAll("SELECT `user_id`, `username`" 
+                        . ($this->hasRequest('order_by') ? ", " . $this->xenAPI->getDatabase()->quote($order_by_field) : '') 
+                        . " FROM `xf_user`" . ($this->hasRequest('value') ? " WHERE `username` LIKE " . $this->xenAPI->getDatabase()->quote($string) : '') 
+                        . ($this->hasRequest('order_by') ? " ORDER BY `$order_by_field` " . $this->order : '') 
+                        . (($this->limit > 0) ? ' LIMIT ' . $this->xenAPI->getDatabase()->quote($this->limit) : ''));
                 }
 
                 // Send the response.
@@ -4088,7 +4093,8 @@ class XenAPI {
 
     public function getGroup($group) {
         // Get the group from the database.
-        return $this->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = '$group' OR `title` = '$group' OR `user_title` = '$group'");
+        return $this->getDatabase()->fetchRow("SELECT * FROM `xf_user_group` WHERE `user_group_id` = " . $this->getDatabase()->quote($group) 
+            . " OR `title` = " . $this->getDatabase()->quote($group) . " OR `user_title` = " . $this->getDatabase()->quote($group));
     }
 
     /**
@@ -4788,7 +4794,8 @@ class XenAPI {
     */
     public function getUser($input, $fetchOptions = array()) {
         if (!empty($fetchOptions['custom_field'])) {
-            $results = $this->getDatabase()->fetchRow("SELECT `user_id` FROM `xf_user_field_value` WHERE `field_id` = '" . $fetchOptions['custom_field'] . "' AND `field_value` = '$input'");
+            $results = $this->getDatabase()->fetchRow("SELECT `user_id` FROM `xf_user_field_value` WHERE `field_id` = " 
+                . $this->getDatabase()->quote($fetchOptions['custom_field']) . " AND `field_value` = " . $this->getDatabase()->quote($input));
             if (!empty($results['user_id'])) {
                 $input = $results['user_id'];
             }
