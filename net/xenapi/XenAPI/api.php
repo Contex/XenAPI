@@ -222,7 +222,6 @@ class RestAPI {
                 break;  
             default:
                 $this->throwError(12, $this->method);
-                break;
         }
         $this->xenAPI = new XenAPI();
 
@@ -246,7 +245,6 @@ class RestAPI {
             if (!$this->grab_as->isRegistered()) {
                 // Throw error if the 'grab_as' user is not registered.
                 $this->throwError(4, 'user', $this->getRequest('grab_as'));
-                break;
             }
         }
         // Check if order by argument is set.
@@ -460,7 +458,6 @@ class RestAPI {
                     return $this->hasAPIKey();
                 default:
                     $this->throwError(10, $this->getAction());
-                    return FALSE;
             }
         }
         // Returns TRUE if permission of the action is public or the request has a valid API key.
@@ -534,12 +531,10 @@ class RestAPI {
             if (!$this->getRequest('order_by')) {
                 // Throw error if the 'order_by' argument is set but empty.
                 $this->throwError(1, 'order_by');
-                break;
             } 
             if (!in_array(strtolower($this->getRequest('order_by')), $order_by_array)) {
                 // Throw error if the 'order_by' argument is set but could not be found in list of allowed order_by.
                 $this->throwError(22, $this->getRequest('order_by'), implode(', ', $order_by_array));
-                break;
             }
             return strtolower($this->getRequest('order_by'));
         }
@@ -810,14 +805,12 @@ class RestAPI {
                 if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 // Create a user variable with the 'value' argument.
                 $user = $this->xenAPI->getUser($this->getRequest('value'));
                 if (!$user->isRegistered()) {
                     // Throw error if the 'value' user is not registered.
                     $this->throwError(4, 'user', $this->getRequest('value'));
-                    break;
                 }
             } else if ($this->hasRequest('hash')) {
                 // The 'value' argument was not set, check if hash is an API key.
@@ -833,7 +826,6 @@ class RestAPI {
             } else {
                 // Nor the 'value' argument or the 'hash' argument has been set, throw error.
                 $this->throwError(3, 'value');
-                break;
             }
             if ($this->hasRequest('with_upgrades')) {
                 $user_upgrades = $this->getXenAPI()->getUserUpgrades($user);
@@ -856,19 +848,15 @@ class RestAPI {
                 if (!$this->hasRequest('username')) {
                     // The 'username' argument has not been set, throw error.
                     $this->throwError(3, 'username');
-                    break;
                 } else if (!$this->getRequest('username')) {
                     // Throw error if the 'username' argument is set but empty.
                     $this->throwError(1, 'username');
-                    break;
                 } else if (!$this->hasRequest('password')) {
                     // The 'password' argument has not been set, throw error.
                     $this->throwError(3, 'password');
-                    break;
                 } else if (!$this->getRequest('password')) {
                     // Throw error if the 'password' argument is set but empty.
                     $this->throwError(1, 'password');
-                    break;
                 }
                 // Get the user object.
                 $user = $this->xenAPI->getUser($this->getRequest('username'));
@@ -888,48 +876,37 @@ class RestAPI {
                         $this->throwError(5, 'Invalid username or password!');
                     }
                 }
-                break;
             case 'createalert': 
                 if (!$this->hasRequest('user')) {
                     // The 'user' argument has not been set, throw error.
                     $this->throwError(3, 'user');
-                    break;
                 } else if (!$this->getRequest('user')) {
                     // Throw error if the 'user' argument is set but empty.
                     $this->throwError(1, 'user');
-                    break;
                 } else if (!$this->hasRequest('cause_user')) {
                     // The 'cause_user' argument has not been set, throw error.
                     $this->throwError(3, 'cause_user');
-                    break;
                 } else if (!$this->getRequest('cause_user')) {
                     // Throw error if the 'cause_user' argument is set but empty.
                     $this->throwError(1, 'cause_user');
-                    break;
                 } else if (!$this->hasRequest('content_type')) {
                     // The 'content_type' argument has not been set, throw error.
                     $this->throwError(3, 'content_type');
-                    break;
                 } else if (!$this->getRequest('content_type')) {
                     // Throw error if the 'content_type' argument is set but empty.
                     $this->throwError(1, 'content_type');
-                    break;
                 } else if (!$this->hasRequest('content_id')) {
                     // The 'content_id' argument has not been set, throw error.
                     $this->throwError(3, 'content_id');
-                    break;
                 } else if (!$this->getRequest('content_id')) {
                     // Throw error if the 'content_id' argument is set but empty.
                     $this->throwError(1, 'content_id');
-                    break;
                 } else if (!$this->hasRequest('alert_action')) {
                     // The 'alert_action' argument has not been set, throw error.
                     $this->throwError(3, 'alert_action');
-                    break;
                 } else if (!$this->getRequest('alert_action')) {
                     // Throw error if the 'alert_action' argument is set but empty.
                     $this->throwError(1, 'alert_action');
-                    break;
                 }
 
                 $alert_user = $this->getXenAPI()->getUser($this->getRequest('user'));
@@ -1064,21 +1041,17 @@ class RestAPI {
                 if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
                     // The 'grab_as' argument has not been set, throw error.
                     $this->throwError(3, 'grab_as');
-                    break;
                 } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
                     // Throw error if the 'grab_as' argument is set but empty.
                     $this->throwError(1, 'grab_as');
-                    break;
                 } 
 
                 if (!$this->hasRequest('thread_id')) {
                     // The 'thread_id' argument has not been set, throw error.
                     $this->throwError(3, 'thread_id');
-                    break;
                 } else if (!$this->getRequest('thread_id')) {
                     // Throw error if the 'thread_id' argument is set but empty.
                     $this->throwError(1, 'thread_id');
-                    break;
                 }
 
                 // Try to grab the thread from XenForo.
@@ -1091,11 +1064,9 @@ class RestAPI {
                 if (!$this->hasRequest('message')) {
                     // The 'message' argument has not been set, throw error.
                     $this->throwError(3, 'message');
-                    break;
                 } else if (!$this->getRequest('message')) {
                     // Throw error if the 'message' argument is set but empty.
                     $this->throwError(1, 'message');
-                    break;
                 }
 
                 $post_data = array(
@@ -1126,7 +1097,6 @@ class RestAPI {
                     if (!$this->getRequest('user')) {
                         // Throw error if the 'user' argument is set but empty.
                         $this->throwError(1, 'user');
-                        break;
                     }
                     $profile_user = $this->getXenAPI()->getUser($this->getRequest('user'));
                     if (!$user->isRegistered()) {
@@ -1196,21 +1166,17 @@ class RestAPI {
                 if ($this->hasAPIKey() && !$this->hasRequest('grab_as')) {
                     // The 'grab_as' argument has not been set, throw error.
                     $this->throwError(3, 'grab_as');
-                    break;
                 } else if ($this->hasAPIKey() && !$this->getRequest('grab_as')) {
                     // Throw error if the 'grab_as' argument is set but empty.
                     $this->throwError(1, 'grab_as');
-                    break;
                 } 
 
                 if (!$this->hasRequest('node_id')) {
                     // The 'node_id' argument has not been set, throw error.
                     $this->throwError(3, 'node_id');
-                    break;
                 } else if (!$this->getRequest('node_id')) {
                     // Throw error if the 'node_id' argument is set but empty.
                     $this->throwError(1, 'node_id');
-                    break;
                 }
 
                 // Try to grab the node from XenForo.
@@ -1223,21 +1189,17 @@ class RestAPI {
                 if (!$this->hasRequest('title')) {
                     // The 'title' argument has not been set, throw error.
                     $this->throwError(3, 'title');
-                    break;
                 } else if (!$this->getRequest('title')) {
                     // Throw error if the 'title' argument is set but empty.
                     $this->throwError(1, 'title');
-                    break;
                 }
 
                 if (!$this->hasRequest('message')) {
                     // The 'message' argument has not been set, throw error.
                     $this->throwError(3, 'message');
-                    break;
                 } else if (!$this->getRequest('message')) {
                     // Throw error if the 'message' argument is set but empty.
                     $this->throwError(1, 'message');
-                    break;
                 }
 
                 $thread_data = array();
@@ -1259,7 +1221,6 @@ class RestAPI {
                 if (isset($thread_data['discussion_state']) && !in_array($thread_data['discussion_state'], ['visible', 'moderated', 'deleted'])) {
                     // Discussion state could not be found in the discussion state list, throw error.
                     $this->throwError(24, $this->getRequest('discussion_state'), implode(', ', ['visible', 'moderated', 'deleted']));
-                    break;
                 }
 
                 $thread_data += array(
@@ -1282,18 +1243,15 @@ class RestAPI {
                 if (!$this->hasRequest('post_id')) {
                     // The 'post_id' argument has not been set, throw error.
                     $this->throwError(3, 'post_id');
-                    break;
                 } else if (!$this->getRequest('post_id')) {
                     // Throw error if the 'post_id' argument is set but empty.
                     $this->throwError(1, 'post_id');
-                    break;
                 }
 
                 if ($this->hasRequest('reason')) {
                     if (!$this->getRequest('reason')) {
                         // Throw error if the 'reason' argument is set but empty.
                         $this->throwError(1, 'reason');
-                        break;
                     }
                     $reason = $this->getRequest('reason');
                 } else {
@@ -1321,18 +1279,15 @@ class RestAPI {
                     if (!$this->getRequest('value')) {
                         // Throw error if the 'value' argument is set but empty.
                         $this->throwError(1, 'value');
-                        break;
                     }
                     $user = $this->getRequest('value');
                 } else if ($this->hasAPIKey()) {
                     if (!$this->hasRequest('value')) {
                         // The 'value' argument has not been set, throw error.
                         $this->throwError(3, 'value');
-                        break;
                     } else if (!$this->getRequest('value')) {
                         // Throw error if the 'value' argument is set but empty.
                         $this->throwError(1, 'value');
-                        break;
                     }
                     $user = $this->getRequest('value');
                 } else {
@@ -1345,7 +1300,6 @@ class RestAPI {
                     if (!$this->getRequest('reason')) {
                         // Throw error if the 'reason' argument is set but empty.
                         $this->throwError(1, 'reason');
-                        break;
                     }
                     $reason = $this->getRequest('reason');
                 } else {
@@ -1374,11 +1328,9 @@ class RestAPI {
                 if (!$this->hasRequest('post_id')) {
                     // The 'post_id' argument has not been set, throw error.
                     $this->throwError(3, 'post_id');
-                    break;
                 } else if (!$this->getRequest('post_id')) {
                     // Throw error if the 'post_id' argument is set but empty.
                     $this->throwError(1, 'post_id');
-                    break;
                 }
 
                 $post = $this->getXenAPI()->getPost($this->getRequest('post_id'), array(), $this->getUser());
@@ -1479,11 +1431,9 @@ class RestAPI {
                 if (!$this->hasRequest('thread_id')) {
                     // The 'thread_id' argument has not been set, throw error.
                     $this->throwError(3, 'thread_id');
-                    break;
                 } else if (!$this->getRequest('thread_id')) {
                     // Throw error if the 'thread_id' argument is set but empty.
                     $this->throwError(1, 'thread_id');
-                    break;
                 }
 
                 $thread = $this->getXenAPI()->getThread($this->getRequest('thread_id'), array(), $this->getUser());
@@ -1579,17 +1529,14 @@ class RestAPI {
                 if (!$this->hasRequest('user')) {
                     // The 'user' argument has not been set, throw error.
                     $this->throwError(3, 'user');
-                    break;
                 } else if (!$this->getRequest('user')) {
                     // Throw error if the 'user' argument is set but empty.
                     $this->throwError(1, 'user');
-                    break;
                 }
                 if ($this->hasRequest('custom_field_identifier')) {
                     if (!$this->getRequest('custom_field_identifier')) {
                         // Throw error if the 'custom_field_identifier' argument is set but empty.
                         $this->throwError(1, 'custom_field_identifier');
-                        break;
                     }
                     $user = $this->getXenAPI()->getUser($this->getRequest('user'), array('custom_field' => $this->getRequest('custom_field_identifier')));
                 } else {
@@ -1609,7 +1556,6 @@ class RestAPI {
                     if (!$this->getRequest('group')) {
                         // Throw error if the 'group' argument is set but empty.
                         $this->throwError(1, 'group');
-                        break;
                     }
                     $group = $this->getXenAPI()->getGroup($this->getRequest('group'));
                     if (!$group) {
@@ -1688,7 +1634,6 @@ class RestAPI {
                     if (!$this->getRequest('custom_fields')) {
                         // Throw error if the 'custom_fields' argument is set but empty.
                         $this->throwError(1, 'custom_fields');
-                        break;
                     }
                     $custom_fields = $this->getCustomArray($this->getRequest('custom_fields'));
 
@@ -1743,7 +1688,6 @@ class RestAPI {
                                     'error_phrase' => $error
                                 );
                                 $this->throwError(self::USER_ERROR, $edit_error, 'editing an user');
-
                             }
 
                             // Let's init the edit error array.
@@ -1769,7 +1713,6 @@ class RestAPI {
                     // Edit was successful, return results.
                     $this->sendResponse($edit_results);
                 }
-                break;
             case 'getactions':
                 /**
                 * Returns the actions and their permission levels.
@@ -1787,7 +1730,6 @@ class RestAPI {
                 */
                 // Send the response.
                 $this->sendResponse($this->actions);
-                break;
             case 'getaddon': 
                 /**
                 * Returns the addon information depending on the 'value' argument.
@@ -1802,11 +1744,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 // Try to grab the addon from XenForo.
@@ -1818,7 +1758,6 @@ class RestAPI {
                     // Addon was found, send response.
                     $this->sendResponse(Addon::getLimitedData($addon));
                 }
-                break;
             case 'getaddons':
                 /**
                 * Returns a list of addons, if a type is not specified or not supported, 
@@ -1845,7 +1784,6 @@ class RestAPI {
                     if (!$this->getRequest('type')) {
                         // Throw error if the 'type' argument is set but empty.
                         $this->throwError(1, 'type');
-                        break;
                     }
                     // Use the value from the 'type' argument to get the alerts.
                     $installed_addons = $this->xenAPI->getAddons($this->getRequest('type'));
@@ -1861,7 +1799,6 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse(array('count' => count($addons), 'addons' => $addons));
-                break;
             case 'getalerts':
                 /**
                 * Grabs the alerts from the specified user, if type is not specified, 
@@ -1894,7 +1831,6 @@ class RestAPI {
                     if (!$this->getRequest('type')) {
                         // Throw error if the 'type' argument is set but empty.
                         $this->throwError(1, 'type');
-                        break;
                     }
                     // Use the value from the 'type' argument to get the alerts.
                     $data = $user->getAlerts($this->getRequest('type'));
@@ -1904,7 +1840,6 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse($data);
-                break;
             case 'getavatar': 
                 /**
                 * Returns the avatar of the requested user.
@@ -1928,7 +1863,6 @@ class RestAPI {
                     if (!$this->getRequest('size')) {
                         // Throw error if the 'size' argument is set but empty.
                         $this->throwError(1, 'size');
-                        break;
                     }
                     // Use the value from the 'size' argument.
                     $size = strtolower($this->getRequest('size'));
@@ -1945,16 +1879,13 @@ class RestAPI {
                 }
                 // Send the response.
                 $this->sendResponse(array('avatar' => $user->getAvatar($size)));
-                break;
             case 'getconversation':
                 if (!$this->hasRequest('conversation_id')) {
                     // The 'conversation_id' argument has not been set, throw error.
                     $this->throwError(3, 'conversation_id');
-                    break;
                 } else if (!$this->getRequest('conversation_id')) {
                     // Throw error if the 'conversation_id' argument is set but empty.
                     $this->throwError(1, 'conversation_id');
-                    break;
                 }
 
                 // Try to grab the thread from XenForo.
@@ -1979,11 +1910,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 
@@ -1997,7 +1926,6 @@ class RestAPI {
                     // Group was found, send response.
                     $this->sendResponse($group);
                 }
-                break;
             case 'getconversations':
                 /**
                 * Grabs the conversations from the specified user.
@@ -2021,7 +1949,6 @@ class RestAPI {
 
                 // Send the response.
                 $this->sendResponse(array('count' => count($conversations), 'conversations' => $conversations));
-                break;
             case 'getgroup': 
                 /**
                 * Returns the group information depending on the 'value' argument.
@@ -2035,11 +1962,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 
@@ -2053,7 +1978,6 @@ class RestAPI {
                     // Group was found, send response.
                     $this->sendResponse($group);
                 }
-                break;
             case 'getnode':
                 /**
                 * Returns the node information depending on the 'value' argument.
@@ -2071,11 +1995,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 // Try to grab the node from XenForo.
@@ -2098,7 +2020,6 @@ class RestAPI {
                      // Thread was found, and the request was permitted.
                     $this->sendResponse($node);
                 }
-                break;
             case 'getnodes':
                 /**
                 * Returns a list of nodes.
@@ -2152,11 +2073,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 // Try to grab the post from XenForo.
@@ -2179,7 +2098,6 @@ class RestAPI {
                      // Post was found, and the request was permitted.
                     $this->sendResponse($post);
                 }
-                break;
             case 'getposts':
                 /**
                 * Returns a list of posts.
@@ -2202,14 +2120,12 @@ class RestAPI {
                     if (!$this->getRequest('author')) {
                         // Throw error if the 'author' argument is set but empty.
                         $this->throwError(1, 'author');
-                        break;
                     }
                     // Grab the user object of the author.
                     $user = $this->xenAPI->getUser($this->getRequest('author'));
                     if (!$user->isRegistered()) {
                         // Throw error if the 'author' user is not registered.
                         $this->throwError(4, 'user', $this->getRequest('author'));
-                        break;
                     }
                     // Add the user ID to the query conditions.
                     $conditions['user_id'] = $user->getID();
@@ -2281,11 +2197,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 // Try to grab the profile post from XenForo.
@@ -2308,7 +2222,6 @@ class RestAPI {
                      // Post was found, and the request was permitted.
                     $this->sendResponse($profile_post);
                 }
-                break;
             case 'getprofileposts':
                 /**
                 * Returns a list of profile posts.
@@ -2331,14 +2244,12 @@ class RestAPI {
                     if (!$this->getRequest('author')) {
                         // Throw error if the 'author' argument is set but empty.
                         $this->throwError(1, 'author');
-                        break;
                     }
                     // Grab the user object of the author.
                     $user = $this->xenAPI->getUser($this->getRequest('author'));
                     if (!$user->isRegistered()) {
                         // Throw error if the 'author' user is not registered.
                         $this->throwError(4, 'user', $this->getRequest('author'));
-                        break;
                     }
                     // Add the user ID to the query conditions.
                     $conditions['author_id'] = $user->getID();
@@ -2350,14 +2261,12 @@ class RestAPI {
                     if (!$this->getRequest('profile')) {
                         // Throw error if the 'profile' argument is set but empty.
                         $this->throwError(1, 'profile');
-                        break;
                     }
                     // Grab the user object of the profile.
                     $user = $this->xenAPI->getUser($this->getRequest('profile'));
                     if (!$user->isRegistered()) {
                         // Throw error if the 'author' user is not registered.
                         $this->throwError(4, 'user', $this->getRequest('profile'));
-                        break;
                     }
                     // Add the user ID to the query conditions.
                     $conditions['profile_id'] = $user->getID();
@@ -2396,7 +2305,6 @@ class RestAPI {
                 */
                 if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
                     $this->throwError(16, 'resource');
-                    break;
                 }
                 $fetchOptions = array();
                 /* 
@@ -2409,11 +2317,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
                 // Try to grab the addon from XenForo.
@@ -2425,7 +2331,6 @@ class RestAPI {
                     // Resource was found, send response.
                     $this->sendResponse(Resource::getLimitedData($resource));
                 }
-                break;
             case 'getresources':
                 /**
                 * Returns a list of resources, either all the resources, 
@@ -2447,7 +2352,6 @@ class RestAPI {
                 */
                 if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
                     $this->throwError(16, 'resource');
-                    break;
                 }
                 $conditions = array();
                 $fetchOptions = array();
@@ -2465,7 +2369,6 @@ class RestAPI {
                     if (!$this->getRequest('category_id')) {
                         // Throw error if the 'category_id' argument is set but empty.
                         $this->throwError(1, 'category_id');
-                        break;
                     }
                     // Use the value from the 'category_id' argument to set the variables.
                     $conditions['resource_category_id'] = $this->getRequest('category_id');
@@ -2479,7 +2382,6 @@ class RestAPI {
                     if (!$this->getRequest('author')) {
                         // Throw error if the 'author' argument is set but empty.
                         $this->throwError(1, 'author');
-                        break;
                     }
 
                     // Create a user variable with the 'author' argument.
@@ -2487,7 +2389,6 @@ class RestAPI {
                     if (!$user->isRegistered()) {
                         // Throw error if the 'author' user is not registered.
                         $this->throwError(4, 'user', $this->getRequest('author'));
-                        break;
                     }
 
                     // Use the value from the 'author' argument to set the variables.
@@ -2517,7 +2418,6 @@ class RestAPI {
                 */
                 if (!$this->getXenAPI()->getModels()->hasModel('resource')) {
                     $this->throwError(16, 'resource');
-                    break;
                 }
 
                 // Grab the resource categories.
@@ -2553,7 +2453,6 @@ class RestAPI {
                     'posts_today'            => $this->xenAPI->getStatsItem('posts_today', $include_deleted),
                     'users_online'           => $this->xenAPI->getUsersOnlineCount($this->getUser())
                 ));
-                break;
             case 'getthread':
                 /**
                 * Returns the thread information depending on the 'value' argument.
@@ -2572,11 +2471,9 @@ class RestAPI {
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $string = $this->getRequest('value');
 
@@ -2589,7 +2486,6 @@ class RestAPI {
                         if (!$this->getRequest('content_limit') && (is_numeric($this->getRequest('content_limit')) && $this->getRequest('content_limit') != 0)) {
                             // Throw error if the 'content_limit' argument is set but empty.
                             $this->throwError(1, 'content_limit');
-                            break;
                         } else if (!is_numeric($this->getRequest('content_limit'))) {
                             // Throw error if the 'content_limit' argument is set but not a number.
                             $this->throwError(21, 'content_limit');
@@ -2618,7 +2514,6 @@ class RestAPI {
                      // Thread was found, and the request was permitted.
                     $this->sendResponse($thread);
                 }
-                break;
             case 'getthreads':
                 /**
                 * Returns a list of threads.
@@ -2641,14 +2536,12 @@ class RestAPI {
                     if (!$this->getRequest('author')) {
                         // Throw error if the 'author' argument is set but empty.
                         $this->throwError(1, 'author');
-                        break;
                     }
                     // Grab the user object of the author.
                     $user = $this->xenAPI->getUser($this->getRequest('author'));
                     if (!$user->isRegistered()) {
                         // Throw error if the 'author' user is not registered.
                         $this->throwError(4, 'user', $this->getRequest('author'));
-                        break;
                     }
                     // Add the user ID to the query conditions.
                     $conditions['user_id'] = $user->getID();
@@ -2681,7 +2574,6 @@ class RestAPI {
                         if (!$this->getRequest('content_limit') && (is_numeric($this->getRequest('content_limit')) && $this->getRequest('content_limit') != 0)) {
                             // Throw error if the 'content_limit' argument is set but empty.
                             $this->throwError(1, 'content_limit');
-                            break;
                         } else if (!is_numeric($this->getRequest('content_limit'))) {
                             // Throw error if the 'content_limit' argument is set but not a number.
                             $this->throwError(21, 'content_limit');
@@ -2717,7 +2609,6 @@ class RestAPI {
 
                 // Send the response.
                 $this->sendResponse($this->stripUserData($user));
-                break;
             case 'getusers': 
                 /**
                 * Searches through the usernames depending on the input.
@@ -2758,14 +2649,12 @@ class RestAPI {
                         if (!$this->getRequest('value')) {
                             // Throw error if the 'value' argument is set but empty.
                             $this->throwError(1, 'value');
-                            break;
                         }
                         // Replace the wildcard with '%' for the SQL query.
                         $string = str_replace('*', '%', $this->getRequest('value'));
                     } else if (!$this->hasRequest('order_by')) {
                         // Nor the 'value' argument or the 'order_by' argument has been set, throw error.
                         $this->throwError(3, 'value');
-                        break;
                     }
 
                     // Check if the order by argument is set.
@@ -2777,7 +2666,6 @@ class RestAPI {
 
                 // Send the response.
                 $this->sendResponse($results);
-                break;
             case 'getuserupgrade': 
                 /**
                 * TODO
@@ -2787,18 +2675,15 @@ class RestAPI {
                 if (!$this->hasRequest('id')) {
                     // The 'id' argument has not been set, throw error.
                     $this->throwError(3, 'id');
-                    break;
                 } else if (!$this->getRequest('id')) {
                     // Throw error if the 'id' argument is set but empty.
                     $this->throwError(1, 'id');
-                    break;
                 }
 
                 $user_upgrade = $this->getXenAPI()->getUserUpgrade($this->getRequest('id'));
 
                 if (!$user_upgrade) {
                     $this->throwError(4, 'user upgrade', $this->getRequest('id'));
-                    break;
                 }
 
                 // Send the response.
@@ -2955,27 +2840,21 @@ class RestAPI {
                 if (!$this->hasRequest('username')) {
                     // The 'username' argument has not been set, throw error.
                     $this->throwError(3, 'username');
-                    break;
                 } else if (!$this->getRequest('username')) {
                     // Throw error if the 'username' argument is set but empty.
                     $this->throwError(1, 'username');
-                    break;
                 } else if (!$this->hasRequest('password')) {
                     // The 'password' argument has not been set, throw error.
                     $this->throwError(3, 'password');
-                    break;
                 } else if (!$this->getRequest('password')) {
                     // Throw error if the 'password' argument is set but empty.
                     $this->throwError(1, 'password');
-                    break;
                 } else if (!$this->hasRequest('ip_address')) {
                     // The 'ip_address' argument has not been set, throw error.
                     $this->throwError(3, 'ip_address');
-                    break;
                 } else if (!$this->getRequest('ip_address')) {
                     // Throw error if the 'ip_address' argument is set but empty.
                     $this->throwError(1, 'ip_address');
-                    break;
                 }
 
                 // Get the user object.
@@ -3021,7 +2900,6 @@ class RestAPI {
                         $this->throwError(5, 'Invalid username or password!');
                     }
                 }
-                break;
             case 'register':
                 /**
                 * Registers a user.
@@ -3058,7 +2936,6 @@ class RestAPI {
                     if (!$this->getRequest('group')) {
                         // Throw error if the 'group' argument is set but empty.
                         $this->throwError(1, 'group');
-                        break;
                     }
                     $group = $this->getXenAPI()->getGroup($this->getRequest('group'));
                     if (!$group) {
@@ -3079,7 +2956,6 @@ class RestAPI {
                     if (!$this->getRequest('custom_fields')) {
                         // Throw error if the 'custom_fields' argument is set but empty.
                         $this->throwError(1, 'custom_fields');
-                        break;
                     }
                     $custom_fields = $this->getCustomArray($this->getRequest('custom_fields'));
 
@@ -3158,7 +3034,6 @@ class RestAPI {
                     if (!$this->getRequest('user_state')) {
                         // Throw error if the 'user_state' argument is set but empty.
                         $this->throwError(1, 'user_state');
-                        break;
                     }
                     // Set the user state of the registration.
                     $user_data['user_state'] = $this->getRequest('user_state');
@@ -3169,7 +3044,6 @@ class RestAPI {
                     if (!$this->getRequest('language_id')) {
                         // Throw error if the 'language_id' argument is set but empty.
                         $this->throwError(1, 'language_id');
-                        break;
                     }
                     // Set the language id of the registration.
                     $user_data['language_id'] = $this->getRequest('language_id');
@@ -3217,16 +3091,13 @@ class RestAPI {
                     // Registration was successful, return results.
                     $this->sendResponse($registration_results);
                 }
-                break;
             case 'search':
                 if (!$this->hasRequest('value')) {
                     // The 'value' argument has not been set, throw error.
                     $this->throwError(3, 'value');
-                    break;
                 } else if (!$this->getRequest('value')) {
                     // Throw error if the 'value' argument is set but empty.
                     $this->throwError(1, 'value');
-                    break;
                 }
                 $order = 'asc';
                 $type = NULL;
@@ -3235,7 +3106,6 @@ class RestAPI {
                     if (!$this->getRequest('order')) {
                         // Throw error if the 'order' argument is set but empty.
                         $this->throwError(1, 'order');
-                        break;
                     }
                     // Set the language id of the registration.
                     $order = $this->getRequest('order');
@@ -3245,13 +3115,11 @@ class RestAPI {
                     if (!$this->getRequest('type')) {
                         // Throw error if the 'type' argument is set but empty.
                         $this->throwError(1, 'type');
-                        break;
                     }
                     // Set the language id of the registration.
                     $type = $this->getRequest('type');
                 }
                 $this->sendResponse($this->getXenAPI()->search($this->getRequest('value'), $order, $type));
-                break;
             default:
                 // Action was supported but has not yet been added to the switch statement, throw error.
                 $this->throwError(11, $this->getAction());
